@@ -63,7 +63,17 @@ export default async function CreerPage() {
     <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
       <h2 className="text-xl font-semibold text-zinc-900">Créer</h2>
       {!brand ? (
-        <p className="mt-2 text-zinc-700">Aucune marque active.</p>
+        <div className="mt-3 rounded-md border border-dashed border-zinc-300 p-6 text-sm text-zinc-700">
+          Aucune marque active. Lancez l’onboarding pour créer votre première marque.
+          <div className="mt-3">
+            <a
+              href="/onboarding"
+              className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-white hover:opacity-90"
+            >
+              Démarrer l’onboarding
+            </a>
+          </div>
+        </div>
       ) : (
         <>
           <form action={launchGen} className="mt-4 space-y-4">

@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,11 @@ export default async function MarquePage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  let brandId = searchParams?.brand as string | undefined;
+  // URL > cookie > first brand
+  const cookieStore = cookies() as any;
+  let brandId =
+    (searchParams?.brand as string | undefined) ||
+    (cookieStore.get?.("active_brand")?.value as string | undefined);
   if (!brandId) {
     const { data: firstBrand } = await supabase
       .from("brands")
@@ -28,6 +33,24 @@ export default async function MarquePage({
     .select("id,name,slug,data")
     .eq("id", brandId || "")
     .maybeSingle();
+  if (!brand) {
+    return (
+      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+        <h2 className="text-xl font-semibold text-zinc-900">Marque</h2>
+        <div className="mt-3 rounded-md border border-dashed border-zinc-300 p-6 text-sm text-zinc-700">
+          Aucune marque active. Lancez l’onboarding pour créer votre première marque.
+          <div className="mt-3">
+            <a
+              href="/onboarding"
+              className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-white hover:opacity-90"
+            >
+              Démarrer l’onboarding
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const { data: os } = await supabase
     .from("brand_os_versions")
     .select("version,summary,canon")
@@ -90,6 +113,24 @@ export default async function MarquePage({
       <h2 className="text-xl font-semibold text-zinc-900">
         Marque {brand?.name ? `· ${brand.name}` : ""}
       </h2>
+      {!os && !mega ? (
+        <div className="mt-3 rounded-md border border-dashed border-zinc-300 p-6 text-sm text-zinc-700">
+          Aucun Brand OS ni méga‑prompt pour cette marque. Vous pouvez
+          soit démarrer l’onboarding pour générer une V1, soit saisir un résumé du Brand OS
+          puis cliquer sur « Enregistrer une nouvelle version ».
+          <div className="mt-3 flex items-center gap-2">
+            <a
+              href="/onboarding"
+              className="rounded-md bg-accent px-3 py-1.5 text-sm text-white hover:opacity-90"
+            >
+              Démarrer l’onboarding
+            </a>
+            <a href="#summary" className="text-accent underline underline-offset-4">
+              Saisir un résumé maintenant
+            </a>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 p-4">
           <h3 className="font-medium text-zinc-800">Brand OS</h3>
@@ -97,6 +138,7 @@ export default async function MarquePage({
             <textarea
               name="summary"
               rows={8}
+              id="summary"
               defaultValue={os?.summary || ""}
               className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
