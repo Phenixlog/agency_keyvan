@@ -12,7 +12,7 @@ Self-serve Brand OS — SaaS Lab (Sprint 1).
 - Supabase via `@supabase/ssr` et `@supabase/supabase-js`
 - Sortie `standalone` (Railway-friendly)
 
-## Auth Supabase (magic‑link) — configuration requise
+## Auth Supabase (lien magique + mot de passe) — configuration requise
 1. Dans le Dashboard Supabase > Authentication > URL de redirection, ajoutez:
    - `http://localhost:3000/auth/callback`
    - `https://web-production-79264.up.railway.app/auth/callback`
@@ -25,8 +25,8 @@ Self-serve Brand OS — SaaS Lab (Sprint 1).
    - Optionnel: `NEXT_PUBLIC_SITE_URL` (utilisé pour composer l’URL de rappel)
 
 Routes auth:
-- `/login` · saisie de l’e‑mail (envoi du lien magique)
-- `/auth/callback` · échange de code → session (PKCE / magic‑link)
+- `/login` · lien magique OU e‑mail + mot de passe
+- `/auth/callback` · échange de code (PKCE / lien magique) et anciens liens `token_hash`
 - `/logout` · déconnexion
 
 Le middleware protège `/app/**` et `/onboarding/**` (redirige vers `/login` si non connecté).
