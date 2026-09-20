@@ -4,11 +4,12 @@ import { getOrCreateDefaultOrgForUser } from "@/lib/orgs";
 
 export const dynamic = "force-dynamic";
 
-export default function LoginPage({
-  searchParams,
+export default async function LoginPage({
+  searchParams: searchParamsPromise,
 }: {
-  searchParams?: { sent?: string; email?: string; error?: string };
+  searchParams?: Promise<{ sent?: string; email?: string; error?: string }>;
 }) {
+  const searchParams = await searchParamsPromise;
   async function sendMagicLink(formData: FormData) {
     "use server";
     const email = String(formData.get("email") || "").trim();

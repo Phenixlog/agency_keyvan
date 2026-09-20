@@ -14,9 +14,9 @@ export default async function CreerPage() {
   if (!user) redirect("/login");
 
   // Resolve active brand
-  const cookieStore = cookies() as any;
+  const cookieStore = await cookies();
   let brandId =
-    cookieStore.get?.("active_brand")?.value ||
+    cookieStore.get("active_brand")?.value ||
     (await supabase
       .from("brands")
       .select("id")

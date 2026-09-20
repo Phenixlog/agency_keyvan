@@ -9,10 +9,11 @@ import { queueSocialGeneration } from "@/lib/jobs/engine";
 export const dynamic = "force-dynamic";
 
 export default async function StudioPage({
-  searchParams,
+  searchParams: searchParamsPromise,
 }: {
-  searchParams?: { brand?: string; focus?: string };
+  searchParams?: Promise<{ brand?: string; focus?: string }>;
 }) {
+  const searchParams = await searchParamsPromise;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -20,10 +21,10 @@ export default async function StudioPage({
   if (!user) redirect("/login");
 
   // Resolve active brand
-  const cookieStore = cookies() as any;
+  const cookieStore = await cookies();
   let brandId =
     searchParams?.brand ||
-    cookieStore.get?.("active_brand")?.value ||
+    cookieStore.get("active_brand")?.value ||
     (await supabase
       .from("brands")
       .select("id")

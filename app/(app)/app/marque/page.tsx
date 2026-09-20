@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 export default async function MarquePage({
-  searchParams,
+  searchParams: searchParamsPromise,
 }: {
-  searchParams?: { brand?: string };
+  searchParams?: Promise<{ brand?: string }>;
 }) {
+  const searchParams = await searchParamsPromise;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
