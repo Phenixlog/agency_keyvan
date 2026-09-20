@@ -6,9 +6,10 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
  */
 export function createSupabaseAdminClient(): SupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE;
   if (!serviceRoleKey) {
-    throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
+    throw new Error("Service role key (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE) is not set");
   }
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
