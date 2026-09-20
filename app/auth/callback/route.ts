@@ -15,6 +15,13 @@ export async function GET(req: NextRequest) {
   const email = url.searchParams.get("email") || undefined;
   const typeParam = (url.searchParams.get("type") || "").toLowerCase();
 
+  // If no recognizable auth params, go back to login with explicit error
+  if (!code && !tokenHash) {
+    const noCodeUrl = new URL("/login?error=nocode", req.url);
+    res.headers.set("Location", noCodeUrl.toString());
+    return res;
+  }
+
   // Try modern PKCE / magic-link code exchange first
   let userId: string | null = null;
   let userEmail: string | undefined;

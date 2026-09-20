@@ -18,6 +18,21 @@ export default function AuthHashCatcher() {
     handledRef.current = true;
 
     const { hash, pathname, search } = window.location;
+    // If a PKCE/magic-link "code" arrives on the root or any page, bounce it to /auth/callback
+    const query = new URLSearchParams(search);
+    const code = query.get('code');
+    if (code) {
+      // Preserve any other params if needed
+      const next = `/auth/callback?${query.toString()}`;
+      // Clear hash before navigating
+      if (hash) {
+        const cleanUrl = `${pathname}${search}`;
+        window.history.replaceState(null, '', cleanUrl);
+      }
+      router.replace(next);
+      return;
+    }
+
     if (!hash || !hash.includes('access_token')) {
       return;
     }

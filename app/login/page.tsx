@@ -64,6 +64,8 @@ export default function LoginPage({
   const errorMessage =
     error === "callback"
       ? "La confirmation de connexion a échoué. Réessayez."
+      : error === "nocode"
+      ? "Lien invalide ou expiré. Réessayez depuis la page de connexion."
       : error === "badcreds"
       ? "Identifiants invalides. Vérifiez votre e‑mail et votre mot de passe."
       : error === "missing"
