@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { BrandSwitcher } from "@/components/BrandSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +25,12 @@ export default async function AppLayout({
   async function setBrand(formData: FormData) {
     "use server";
     const id = String(formData.get("brand") || "");
+    const next = String(formData.get("next") || "");
+    const allowed = new Set<string>(["/app/marque", "/app/creer", "/app/studio"]);
     const store = cookies() as any;
     store.set?.("active_brand", id, { path: "/", maxAge: 60 * 60 * 24 * 365 });
-    redirect(`/app/marque?brand=${id}`);
+    const dest = allowed.has(next) ? `${next}?brand=${id}` : `/app/marque?brand=${id}`;
+    redirect(dest);
   }
   return (
     <div className="min-h-screen">
@@ -53,31 +57,8 @@ export default async function AppLayout({
             </Link>
           </nav>
           <div>
-            <form action={setBrand} className="flex items-center gap-2">
-              {brands && brands.length > 0 ? (
-                <>
-                  <label className="text-sm text-zinc-700">Marque:</label>
-                  <select
-                    name="brand"
-                    className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    defaultValue={activeBrand}
-                  >
-                    {brands.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:border-accent"
-                  >
-                    Ouvrir
-                  </button>
-                </>
-              ) : (
-                <span className="text-sm text-zinc-600">Aucune marque</span>
-              )}
+            <div className="flex items-center">
+              <BrandSwitcher brands={brands || []} activeBrand={activeBrand} action={setBrand} />
               {user ? (
                 <a
                   href="/logout"
@@ -86,7 +67,7 @@ export default async function AppLayout({
                   Déconnexion
                 </a>
               ) : null}
-            </form>
+            </div>
           </div>
         </div>
       </header>
