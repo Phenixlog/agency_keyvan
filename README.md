@@ -78,6 +78,9 @@ Aucune chrome avant OB‑06.
 - `docs/ADR-001-stack.md` · décision stack
 - `supabase/migrations/0001_init.sql` · schéma principal (RLS multi‑tenant)
 - `supabase/migrations/0002_storage_outs.sql` · bucket Storage `outs` + politiques
+- `supabase/migrations/0003_fix_org_members_rls.sql` · helpers `is_org_member`/`is_org_admin` (SECURITY DEFINER) et nouvelles policies `org_members` pour éviter la récursion RLS
+
+> Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 
 ## Génération (WaveSpeed) & Apprentissage
 - Clé requise: `WAVESPEED_API_KEY` (Railway: variable déjà configurée en staging).

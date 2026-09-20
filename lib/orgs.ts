@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export type Org = {
   id: string;
@@ -60,7 +61,14 @@ export async function getOrCreateDefaultOrgForUser(userId: string, email?: strin
 }
 
 async function ensureOwnerMembership(orgId: string, userId: string) {
-  const supabase = createSupabaseServerClient();
+  // Use service-role if available to bypass RLS during bootstrap of the first membership
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabase =
+    serviceRoleKey
+      ? createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+          auth: { persistSession: false },
+        })
+      : createSupabaseServerClient();
   const { error } = await supabase.from("org_members").insert({
     org_id: orgId,
     user_id: userId,
