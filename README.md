@@ -30,7 +30,9 @@ Routes auth:
 - `/auth/callback` · échange de code (PKCE / lien magique) et anciens liens `token_hash`
 - `/logout` · déconnexion
 
-Le middleware protège `/app/**` et `/onboarding/**` (redirige vers `/login` si non connecté).
+`proxy.ts` (convention Next 16, ex‑`middleware.ts`) protège `/app/**` et `/onboarding/**` : il vérifie la signature du JWT Supabase (`getClaims()`), rafraîchit la session, et redirige vers `/login?next=…` sinon. Chaque page et route API revalide ensuite l’utilisateur (`getUser()`), la RLS restant la dernière barrière.
+
+`createSupabaseServerClient()` est **asynchrone** (`await cookies()` obligatoire en Next 16) : toujours `const supabase = await createSupabaseServerClient();`.
 
 ## Démarrage local
 1. Prérequis: Node 18+ (recommandé 20+), npm.
@@ -54,7 +56,7 @@ Le middleware protège `/app/**` et `/onboarding/**` (redirige vers `/login` si 
 
 ## Tunnel Onboarding (écritures réelles)
 - OB‑01 — Intake: URL et/ou NL seed (+ notes). Crée/maj `onboarding_sessions` + brouillon `brands` lié à l’org de l’utilisateur.
-- OB‑02 — Lecture: fetch best‑effort serveur (timeouts, fallback NL‑only). Stocke corpus brut en JSONB.
+- OB‑02 — Lecture: fetch best‑effort serveur (timeouts, fallback NL‑only). Stocke corpus brut en JSONB. L’URL étant saisie par l’utilisateur, le fetch passe par `lib/safe-fetch.ts` (anti‑SSRF : http(s) et ports standard uniquement, adresses privées/loopback/metadata refusées au moment de la résolution DNS, redirections revalidées, taille plafonnée). Tests : `npm test`.
 - OB‑03 — Construction: génère Brand OS (3–5 bullets) + amorce mega‑prompt (LLM si clé, sinon template déterministe). Persiste `brand_os_versions` v1 + `mega_prompts` v1.
 - OB‑04 — Soft confirm: utilisateur confirme/édite. Mise à jour Brand OS / mega.
 - OB‑05 — Preuve créa: lance une génération Social 1:1 réelle (WaveSpeed). Crée `jobs` (durable) + `outs` (URL WaveSpeed et/ou path Storage). Permet “Garder” ≥1 `out`. Feedback NL possible (soft bump du méga).
