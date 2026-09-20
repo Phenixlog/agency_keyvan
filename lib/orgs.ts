@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type Org = {
   id: string;
@@ -9,6 +9,57 @@ export type Org = {
 };
 
 export async function getOrCreateDefaultOrgForUser(userId: string, email?: string) {
+  const hasServiceKey = Boolean(
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE
+  );
+  // Prefer admin path when available to avoid RLS during bootstrap right after login
+  if (hasServiceKey) {
+    const admin = createSupabaseAdminClient();
+    // 1) Existing membership?
+    const { data: memberRows, error: memberErr } = await admin
+      .from("org_members")
+      .select("org_id")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .limit(1);
+    if (memberErr) {
+      throw memberErr;
+    }
+    if (memberRows && memberRows.length > 0) {
+      return memberRows[0].org_id as string;
+    }
+    // 2) Create org (idempotent slug retry)
+    const derived = deriveOrgFromEmail(email);
+    const { data: orgInsert, error: orgErr } = await admin
+      .from("orgs")
+      .insert({
+        slug: derived.slug,
+        name: derived.name,
+        created_by: userId,
+      })
+      .select("id")
+      .single();
+    if (orgErr) {
+      const fallback = deriveOrgFromEmail(email, true);
+      const { data: orgInsert2, error: orgErr2 } = await admin
+        .from("orgs")
+        .insert({
+          slug: fallback.slug,
+          name: fallback.name,
+          created_by: userId,
+        })
+        .select("id")
+        .single();
+      if (orgErr2) throw orgErr2;
+      const orgId2 = orgInsert2!.id as string;
+      await ensureOwnerMembership(orgId2, userId, admin);
+      return orgId2;
+    }
+    const orgId = orgInsert!.id as string;
+    await ensureOwnerMembership(orgId, userId, admin);
+    return orgId;
+  }
+  // Fallback (anon RLS path)
   const supabase = createSupabaseServerClient();
 
   // 1) Does the user already belong to an org?
@@ -50,25 +101,18 @@ export async function getOrCreateDefaultOrgForUser(userId: string, email?: strin
       .single();
     if (orgErr2) throw orgErr2;
     const orgId2 = orgInsert2!.id as string;
-    await ensureOwnerMembership(orgId2, userId);
+    await ensureOwnerMembership(orgId2, userId, supabase);
     return orgId2;
   }
   const orgId = orgInsert!.id as string;
 
   // 3) Create owner membership for the creator
-  await ensureOwnerMembership(orgId, userId);
+  await ensureOwnerMembership(orgId, userId, supabase);
   return orgId;
 }
 
-async function ensureOwnerMembership(orgId: string, userId: string) {
-  // Use service-role if available to bypass RLS during bootstrap of the first membership
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabase =
-    serviceRoleKey
-      ? createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
-          auth: { persistSession: false },
-        })
-      : createSupabaseServerClient();
+async function ensureOwnerMembership(orgId: string, userId: string, client?: any) {
+  const supabase = client ?? createSupabaseServerClient();
   const { error } = await supabase.from("org_members").insert({
     org_id: orgId,
     user_id: userId,

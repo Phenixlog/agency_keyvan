@@ -37,26 +37,35 @@ export default function LoginPage({
     if (!email || !password) {
       redirect("/login?error=missing");
     }
-    const supabase = createSupabaseServerClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error || !data?.user) {
+    try {
+      const supabase = createSupabaseServerClient();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error || !data?.user) {
+        redirect("/login?error=badcreds");
+      }
+      // Force cookie write during this server action by touching the session
+      // This ensures the SSR cookie setter is invoked before subsequent queries.
+      await supabase.auth.getSession().catch(() => {});
+
+      // Ensure org/membership (uses service-role bootstrap when available)
+      await getOrCreateDefaultOrgForUser(data.user.id, data.user.email ?? undefined);
+
+      // Decide next: completed onboarding -> /app, else /onboarding
+      const { data: existingOb } = await supabase
+        .from("onboarding_sessions")
+        .select("id,status")
+        .eq("created_by", data.user.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const latest = existingOb && existingOb.length > 0 ? existingOb[0] : null;
+      const nextPath = latest?.status === "completed" ? "/app" : "/onboarding";
+      redirect(nextPath);
+    } catch {
       redirect("/login?error=badcreds");
     }
-    // Ensure org/membership
-    await getOrCreateDefaultOrgForUser(data.user.id, data.user.email ?? undefined);
-    // Decide next: completed onboarding -> /app, else /onboarding
-    const { data: existingOb } = await supabase
-      .from("onboarding_sessions")
-      .select("id,status")
-      .eq("created_by", data.user.id)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    const latest = existingOb && existingOb.length > 0 ? existingOb[0] : null;
-    const nextPath = latest?.status === "completed" ? "/app" : "/onboarding";
-    redirect(nextPath);
   }
 
   const sent = Boolean(searchParams?.sent);
