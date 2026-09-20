@@ -4,7 +4,7 @@ Self-serve Brand OS — SaaS Lab (Sprint 1).
 
 ## Objectif produit
 - UI légère, « native-like », claire (pas de dark-ops).
-- Moteur: Brand OS + mega-prompt + gen V2 + apprentissage NL→mega.
+- Moteur: Brand OS + mega‑prompt + génération Social (WaveSpeed) + apprentissage NL→mega.
 - FR-first, routes stubs prêtes: onboarding et app.
 
 ## Stack
@@ -22,6 +22,7 @@ Self-serve Brand OS — SaaS Lab (Sprint 1).
 3. Renseignez les variables d’environnement (voir `.env.example`) :
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `WAVESPEED_API_KEY` (obligatoire pour la génération d’images)
    - Optionnel: `NEXT_PUBLIC_SITE_URL` (utilisé pour composer l’URL de rappel)
 
 Routes auth:
@@ -56,7 +57,7 @@ Le middleware protège `/app/**` et `/onboarding/**` (redirige vers `/login` si 
 - OB‑02 — Lecture: fetch best‑effort serveur (timeouts, fallback NL‑only). Stocke corpus brut en JSONB.
 - OB‑03 — Construction: génère Brand OS (3–5 bullets) + amorce mega‑prompt (LLM si clé, sinon template déterministe). Persiste `brand_os_versions` v1 + `mega_prompts` v1.
 - OB‑04 — Soft confirm: utilisateur confirme/édite. Mise à jour Brand OS / mega.
-- OB‑05 — Preuve créa: UX Social+Print (génération stub) — crée `jobs` et `outs` placeholders. Permet “Garder” ≥1 `out`.
+- OB‑05 — Preuve créa: lance une génération Social 1:1 réelle (WaveSpeed). Crée `jobs` (durable) + `outs` (URL WaveSpeed et/ou path Storage). Permet “Garder” ≥1 `out`. Feedback NL possible (soft bump du méga).
 - OB‑06 — Entrée BO: si ≥1 `out` gardé (ou OK explicite), redirige `/app/marque` et marque `onboarding_sessions` complété.
 
 Aucune chrome avant OB‑06.
@@ -65,21 +66,36 @@ Aucune chrome avant OB‑06.
 - `/` · Landing (CTA contextuel selon session)
 - `/onboarding/*` · OB‑01 → OB‑06
 - `/app` · Chrome: Marque · Créer · Studio · Calendrier · Expert + sélecteur de marque
-- `/app/marque` · Lit Brand OS + Mega depuis DB pour la marque active
+- `/app/marque` · Lit Brand OS + Mega pour la marque active, historique versions, édition légère (crée nouvelles versions)
+- `/app/creer` · Choisit Social/Print (print en stub), brief NL, lance génération, affiche progression
+- `/app/studio` · Liste les `outs` de la marque: aperçu, Garder/Archiver, feedback NL (méga++), re‑gen
 
 ## Dossiers
 - `app/` · App Router Next.js
 - `lib/supabase/` · helpers SSR/Browser Supabase
-- `lib/jobs/` · stubs de jobs de génération
+- `lib/jobs/` · pipeline de génération (WaveSpeed) + persistance `jobs`/`outs`
 - `docs/canon/` · placeholder pour le canon (à coller)
 - `docs/ADR-001-stack.md` · décision stack
-- `supabase/migrations/0001_init.sql` · placeholder SQL
+- `supabase/migrations/0001_init.sql` · schéma principal (RLS multi‑tenant)
+- `supabase/migrations/0002_storage_outs.sql` · bucket Storage `outs` + politiques
 
-## Hors scope (Sprint 1)
-- Stripe, WaveSpeed live, scrape worker, dark-ops UI, auth avancée
+## Génération (WaveSpeed) & Apprentissage
+- Clé requise: `WAVESPEED_API_KEY` (Railway: variable déjà configurée en staging).
+- Modèle: `wavespeed-ai/z-image/turbo` (API REST v3).
+- Le prompt Social est composé du dernier méga + Brand OS + codes de format (1:1).
+- Dégradation gracieuse: sans clé API, le job échoue proprement (message FR clair).
+- Les images sont soit stockées via URL (WaveSpeed CDN), soit répliquées dans Supabase Storage (`outs/brands/{brandId}/*.jpg`) si possible.
+- Feedback NL (OB‑05, Studio): crée une nouvelle version de `mega_prompts` (soft bump, changelog). Les générations suivantes lisent toujours la dernière version.
+
+## Tests manuels
+1. Terminer l’OB (ou créer une marque de test).
+2. Aller dans `/app/creer` → lancer une génération Social → observer la progression → ouvrir dans Studio.
+3. Dans `/app/studio`, garder une sortie, archiver, envoyer un feedback NL puis re‑générer.
+4. Dans `/app/marque`, éditer le Brand OS et enregistrer une nouvelle version (v+1).
 
 ## Test rapide du tunnel (staging Railway)
 1. Ouvrir `https://web-production-79264.up.railway.app/login`, entrer votre e‑mail.
 2. Cliquer le lien reçu → `/auth/callback`.
-3. Suivre OB‑01 → OB‑06. Au terme, vous arrivez sur `/app/marque` avec les lignes créées (`orgs`, `org_members`, `brands`, `brand_os_versions`, `mega_prompts`, `outs`, `jobs`, `onboarding_sessions`).
+3. Suivre OB‑01 → OB‑06, ou utiliser `/app/creer` directement si vous avez déjà une marque.
+4. Vérifier que `/app/studio` affiche une image réelle. Le feedback NL doit incrémenter la version de `mega_prompts`.
 
