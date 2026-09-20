@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { BlockedUrlError, safeFetchText } from "@/lib/safe-fetch";
 
 export type OnboardingSession = {
   id: string;
@@ -10,7 +11,7 @@ export type OnboardingSession = {
 };
 
 export async function getActiveOnboardingSession(userId: string) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("onboarding_sessions")
     .select("*")
@@ -30,7 +31,7 @@ export async function upsertOnboardingSession(args: {
   brandId?: string | null;
   scrape?: { url?: string; corpus?: string } | null;
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const existing = await getActiveOnboardingSession(args.userId);
   const payload: any = {};
   if (args.brandId) payload.brand_id = args.brandId;
@@ -68,7 +69,7 @@ export async function createDraftBrand(args: {
   seed?: string | null;
   url?: string | null;
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const name = deriveBrandName(args.seed, args.url);
   const slug = slugify(name);
   const { data, error } = await supabase
@@ -86,7 +87,7 @@ export async function createDraftBrand(args: {
 }
 
 export async function saveScrapeToBrand(brandId: string, corpus: string) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { error } = await supabase
     .from("brands")
     .update({ data: { corpus } })
@@ -100,7 +101,7 @@ export async function ensureDraftOSAndMega(args: {
   userId: string;
   corpusOrSeed: string;
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   // Create v1 draft Brand OS summary (3-5 bullets) and mega prompt
   const bullets = draftBullets(args.corpusOrSeed);
   const summary = bullets.join("\n");
@@ -143,7 +144,7 @@ export async function updateOSAndMega(args: {
   summary: string;
   bullets?: string[];
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   // Update latest version=1 for simplicity
   await supabase
     .from("brand_os_versions")
@@ -167,7 +168,7 @@ export async function createStubJobsAndOuts(args: {
   brandId: string;
   userId: string;
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const stubOuts = [
     { kind: "social_post", payload: { text: "Post LinkedIn (stub)" } },
     { kind: "print", payload: { headline: "Affiche (stub)" } },
@@ -206,12 +207,12 @@ export async function createStubJobsAndOuts(args: {
 }
 
 export async function keepOut(outId: string) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   await supabase.from("outs").update({ status: "ready" }).eq("id", outId);
 }
 
 export async function markOnboardingCompleted(sessionId: string) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   await supabase
     .from("onboarding_sessions")
     .update({ status: "completed" })
@@ -227,14 +228,9 @@ export function extractUrl(seed?: string | null) {
 }
 
 export async function scrapeUrl(url: string): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5500);
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { "User-Agent": "OnboardingBot/1.0" },
-    });
-    const html = await res.text();
+    // The URL comes from user input: safeFetchText refuses non-public targets.
+    const html = await safeFetchText(url);
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -242,10 +238,11 @@ export async function scrapeUrl(url: string): Promise<string> {
       .replace(/\s+/g, " ")
       .trim();
     return text.slice(0, 20000);
-  } catch {
+  } catch (e) {
+    if (e instanceof BlockedUrlError) {
+      console.warn(`[onboarding] scrape bloqué: ${e.message}`);
+    }
     return "";
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
