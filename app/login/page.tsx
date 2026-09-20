@@ -38,6 +38,9 @@ export default async function LoginPage({
     if (!email || !password) {
       redirect("/login?error=missing");
     }
+    // redirect() works by throwing: keep every call outside the try block,
+    // otherwise the catch swallows it and a successful login lands on an error.
+    let nextPath: string;
     try {
       const supabase = await createSupabaseServerClient();
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -45,28 +48,26 @@ export default async function LoginPage({
         password,
       });
       if (error || !data?.user) {
-        redirect("/login?error=badcreds");
+        nextPath = "/login?error=badcreds";
+      } else {
+        // Ensure org/membership (uses service-role bootstrap when available)
+        await getOrCreateDefaultOrgForUser(data.user.id, data.user.email ?? undefined);
+
+        // Decide next: completed onboarding -> /app, else /onboarding
+        const { data: existingOb } = await supabase
+          .from("onboarding_sessions")
+          .select("id,status")
+          .eq("created_by", data.user.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const latest = existingOb && existingOb.length > 0 ? existingOb[0] : null;
+        nextPath = latest?.status === "completed" ? "/app" : "/onboarding";
       }
-      // Force cookie write during this server action by touching the session
-      // This ensures the SSR cookie setter is invoked before subsequent queries.
-      await supabase.auth.getSession().catch(() => {});
-
-      // Ensure org/membership (uses service-role bootstrap when available)
-      await getOrCreateDefaultOrgForUser(data.user.id, data.user.email ?? undefined);
-
-      // Decide next: completed onboarding -> /app, else /onboarding
-      const { data: existingOb } = await supabase
-        .from("onboarding_sessions")
-        .select("id,status")
-        .eq("created_by", data.user.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const latest = existingOb && existingOb.length > 0 ? existingOb[0] : null;
-      const nextPath = latest?.status === "completed" ? "/app" : "/onboarding";
-      redirect(nextPath);
-    } catch {
-      redirect("/login?error=badcreds");
+    } catch (e) {
+      console.error("[login] échec après authentification:", e);
+      nextPath = "/login?error=server";
     }
+    redirect(nextPath);
   }
 
   const sent = Boolean(searchParams?.sent);
@@ -80,6 +81,8 @@ export default async function LoginPage({
       ? "Identifiants invalides. Vérifiez votre e‑mail et votre mot de passe."
       : error === "missing"
       ? "Veuillez saisir un e‑mail et un mot de passe."
+      : error === "server"
+      ? "Connexion réussie, mais la préparation de votre espace a échoué. Réessayez."
       : "";
 
   return (
