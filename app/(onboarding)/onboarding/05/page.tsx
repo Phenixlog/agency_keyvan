@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOnboardingSession, keepOut } from "@/lib/onboarding";
 import { queueSocialGeneration } from "@/lib/jobs/engine";
 import { bumpMegaPrompt } from "@/lib/learning";
-import React, { useState } from "react";
+import { JobProgress } from "@/components/jobs/JobProgress";
 
 export const dynamic = "force-dynamic";
 
@@ -128,51 +128,6 @@ export default async function OB05() {
           Suivant
         </Link>
       </div>
-    </div>
-  );
-}
-
-function JobProgress() {
-  "use client";
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  React.useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const id = sp.get("job");
-    if (!id) return;
-    setJobId(id);
-  }, []);
-  React.useEffect(() => {
-    if (!jobId) return;
-    let stop = false;
-    async function tick() {
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
-        if (!res.ok) throw new Error(await res.text());
-        const json = await res.json();
-        const s = json?.job?.status || null;
-        setStatus(s);
-        if (s === "failed") {
-          setError(json?.job?.error || "Échec de génération.");
-        }
-        if (!stop && s && s !== "succeeded" && s !== "failed" && s !== "canceled") {
-          setTimeout(tick, 1000);
-        }
-      } catch (e: any) {
-        setError(e?.message || "Erreur réseau");
-      }
-    }
-    tick();
-    return () => {
-      stop = true;
-    };
-  }, [jobId]);
-  if (!jobId) return null;
-  return (
-    <div className="mt-4 rounded-md border border-zinc-200 p-3 text-sm text-zinc-800">
-      Job {jobId} — Statut: <strong>{status || "…"}</strong>
-      {error ? <div className="mt-1 text-rose-700">{error}</div> : null}
     </div>
   );
 }

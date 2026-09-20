@@ -18,12 +18,14 @@ export default async function AppLayout({
     .from("brands")
     .select("id,name")
     .order("created_at", { ascending: true });
-  const activeBrand = cookies().get("active_brand")?.value || brands?.[0]?.id;
+  const cookieStore = cookies() as any;
+  const activeBrand = cookieStore.get?.("active_brand")?.value || brands?.[0]?.id;
 
   async function setBrand(formData: FormData) {
     "use server";
     const id = String(formData.get("brand") || "");
-    cookies().set("active_brand", id, { path: "/", maxAge: 60 * 60 * 24 * 365 });
+    const store = cookies() as any;
+    store.set?.("active_brand", id, { path: "/", maxAge: 60 * 60 * 24 * 365 });
     redirect(`/app/marque?brand=${id}`);
   }
   return (

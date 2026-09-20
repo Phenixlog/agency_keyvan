@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { queueSocialGeneration } from "@/lib/jobs/engine";
-import React from "react";
+import { JobProgress } from "@/components/jobs/JobProgress";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,9 @@ export default async function CreerPage() {
   if (!user) redirect("/login");
 
   // Resolve active brand
+  const cookieStore = cookies() as any;
   let brandId =
-    cookies().get("active_brand")?.value ||
+    cookieStore.get?.("active_brand")?.value ||
     (await supabase
       .from("brands")
       .select("id")
@@ -56,14 +57,7 @@ export default async function CreerPage() {
     redirect(`/app/creer?job=${jobId}&brand=${brand.id}`);
   }
 
-  const searchParams = (await import("next/headers")).headers();
-  const url = new URL(
-    (process.env.NEXT_PUBLIC_SITE_URL ||
-      process.env.SITE_URL ||
-      "http://localhost:3000") + "/"
-  );
-  // The headers() isn't convenient to read search; use the server component prop approach in Next 15 usually,
-  // but for simplicity we accept querystring visible client side to read.
+  // NB: progression visible via composant client JobProgress (querystring ?job=)
 
   return (
     <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
@@ -107,87 +101,10 @@ export default async function CreerPage() {
               Lancer la génération
             </button>
           </form>
-          {/* Client-side status viewer */}
+          {/* Progression du job */}
           <JobProgress />
         </>
       )}
-    </div>
-  );
-}
-
-function JobProgress() {
-  "use client";
-  const [jobId, setJobId] = React.useState<string | null>(null);
-  const [status, setStatus] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-  const [outLink, setOutLink] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const id = sp.get("job");
-    if (!id) return;
-    setJobId(id);
-  }, []);
-
-  React.useEffect(() => {
-    if (!jobId) return;
-    let stop = false;
-    async function tick() {
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
-        if (!res.ok) throw new Error(await res.text());
-        const json = await res.json();
-        const s = json?.job?.status || null;
-        setStatus(s);
-        if (s === "failed") {
-          setError(json?.job?.error || "Échec de génération.");
-        }
-        if (s === "succeeded") {
-          const outId = json?.job?.output?.out_id;
-          if (outId) {
-            setOutLink(`/app/studio?focus=${outId}`);
-          }
-        }
-        if (!stop && s && s !== "succeeded" && s !== "failed" && s !== "canceled") {
-          setTimeout(tick, 1000);
-        }
-      } catch (e: any) {
-        setError(e?.message || "Erreur réseau");
-      }
-    }
-    tick();
-    return () => {
-      stop = true;
-    };
-  }, [jobId]);
-
-  if (!jobId) return null;
-  return (
-    <div className="mt-6 rounded-lg border border-zinc-200 p-4">
-      <div className="text-sm text-zinc-800">
-        Job <span className="font-mono">{jobId}</span> — Statut:{" "}
-        <strong>{status || "…"}</strong>
-      </div>
-      {error ? <div className="mt-2 text-sm text-rose-700">{error}</div> : null}
-      {outLink ? (
-        <a
-          href={outLink}
-          className="mt-3 inline-flex rounded-md bg-accent px-3 py-1.5 text-white hover:opacity-90"
-        >
-          Ouvrir dans Studio
-        </a>
-      ) : null}
-    </div>
-  );
-}
-
-export default function CreerPage() {
-  return (
-    <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
-      <h2 className="text-xl font-semibold text-zinc-900">Créer</h2>
-      <p className="mt-2 text-zinc-700">
-        Démarrer une nouvelle génération (stub). Sélection de prompts/briefs.
-      </p>
     </div>
   );
 }

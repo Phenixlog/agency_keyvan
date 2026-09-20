@@ -3,10 +3,11 @@ import { getJob } from "@/lib/jobs/engine";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const job = await getJob(params.id);
+    const { id } = await context.params;
+    const job = await getJob(id);
     if (!job) {
       return NextResponse.json({ error: "Job introuvable" }, { status: 404 });
     }
