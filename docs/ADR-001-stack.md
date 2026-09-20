@@ -20,3 +20,6 @@ Conséquences:
 - `.env.example` expose les clés attendues; pas d’implémentation auth étendue pour ce sprint.
 - Docs: `docs/canon/` (placeholder) et cet ADR pour traçabilité.
 
+Notes sur la version de Next:
+- Option « pinner en 15.x » évaluée. Le scaffold actuel (Next 16.x) s’appuie sur React 19 et des presets (p.ex. fontes Geist via `next/font`) susceptibles d’exiger >=16. Le downgrade impliquerait React 18, une révision d’`eslint-config-next`, des types React (`@types/react@18`), et un ajustement potentiel des fontes. Risque de régressions pour un gain limité à ce stade. Décision: conserver 16.x pour Sprint 1. Un pin 15.x restera possible plus tard si requis par l’infra.
+
