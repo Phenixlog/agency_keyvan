@@ -19,7 +19,7 @@ export async function queueSocialGeneration(args: {
   userId: string;
   brief?: string | null;
 }): Promise<{ jobId: string }> {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
 
   // Fetch latest OS + Mega
   const [{ data: os }, { data: mega }] = await Promise.all([
@@ -165,7 +165,7 @@ export async function queueSocialGeneration(args: {
 }
 
 export async function getJob(jobId: string) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("jobs")
     .select("id,job_type,prompt,status,output,error,created_at,updated_at,started_at,finished_at")

@@ -15,7 +15,7 @@ export default function LoginPage({
     if (!email) {
       return;
     }
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const origin =
       process.env.NEXT_PUBLIC_SITE_URL ||
       process.env.SITE_URL ||
@@ -38,7 +38,7 @@ export default function LoginPage({
       redirect("/login?error=missing");
     }
     try {
-      const supabase = createSupabaseServerClient();
+      const supabase = await createSupabaseServerClient();
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,

@@ -8,7 +8,7 @@ export default async function MarquePage({
 }: {
   searchParams?: { brand?: string };
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -51,7 +51,7 @@ export default async function MarquePage({
 
   async function saveNewVersion(formData: FormData) {
     "use server";
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

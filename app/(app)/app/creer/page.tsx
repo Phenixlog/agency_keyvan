@@ -7,7 +7,7 @@ import { JobProgress } from "@/components/jobs/JobProgress";
 export const dynamic = "force-dynamic";
 
 export default async function CreerPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -33,7 +33,7 @@ export default async function CreerPage() {
 
   async function launchGen(formData: FormData) {
     "use server";
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

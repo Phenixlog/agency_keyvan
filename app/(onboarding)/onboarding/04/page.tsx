@@ -6,7 +6,7 @@ import { getActiveOnboardingSession, updateOSAndMega } from "@/lib/onboarding";
 export const dynamic = "force-dynamic";
 
 export default async function OB04() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -24,7 +24,7 @@ export default async function OB04() {
   async function save(formData: FormData) {
     "use server";
     const summary = String(formData.get("summary") || "").trim();
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

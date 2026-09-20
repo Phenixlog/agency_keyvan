@@ -60,7 +60,7 @@ export async function getOrCreateDefaultOrgForUser(userId: string, email?: strin
     return orgId;
   }
   // Fallback (anon RLS path)
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
 
   // 1) Does the user already belong to an org?
   const { data: memberRows, error: memberErr } = await supabase
@@ -112,7 +112,7 @@ export async function getOrCreateDefaultOrgForUser(userId: string, email?: strin
 }
 
 async function ensureOwnerMembership(orgId: string, userId: string, client?: any) {
-  const supabase = client ?? createSupabaseServerClient();
+  const supabase = client ?? (await createSupabaseServerClient());
   const { error } = await supabase.from("org_members").insert({
     org_id: orgId,
     user_id: userId,

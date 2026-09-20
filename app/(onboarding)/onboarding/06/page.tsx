@@ -6,7 +6,7 @@ import { getActiveOnboardingSession, markOnboardingCompleted } from "@/lib/onboa
 export const dynamic = "force-dynamic";
 
 export default async function OB06() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -22,7 +22,7 @@ export default async function OB06() {
 
   async function finish() {
     "use server";
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

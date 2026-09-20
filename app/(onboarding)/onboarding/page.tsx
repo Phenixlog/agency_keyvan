@@ -1,6 +1,16 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default function OnboardingIndex() {
+export const dynamic = "force-dynamic";
+
+export default async function OnboardingIndex() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
   return (
     <div className="w-full max-w-xl rounded-xl bg-white p-8 shadow-sm ring-1 ring-black/5">
       <h2 className="text-2xl font-semibold text-zinc-900">

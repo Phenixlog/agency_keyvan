@@ -9,7 +9,7 @@ import { JobProgress } from "@/components/jobs/JobProgress";
 export const dynamic = "force-dynamic";
 
 export default async function OB05() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -31,7 +31,7 @@ export default async function OB05() {
   }
   async function launch() {
     "use server";
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -46,7 +46,7 @@ export default async function OB05() {
   }
   async function feedback(formData: FormData) {
     "use server";
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

@@ -12,7 +12,7 @@ import { getOrCreateDefaultOrgForUser } from "@/lib/orgs";
 export const dynamic = "force-dynamic";
 
 export default async function OB01() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -21,7 +21,7 @@ export default async function OB01() {
   async function start(formData: FormData) {
     "use server";
     const seed = String(formData.get("seed") || "").trim();
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

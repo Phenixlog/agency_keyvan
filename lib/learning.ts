@@ -5,7 +5,7 @@ export async function bumpMegaPrompt(args: {
   userId: string;
   feedback: string;
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   // Read latest mega for versioning
   const { data: latest } = await supabase
     .from("mega_prompts")

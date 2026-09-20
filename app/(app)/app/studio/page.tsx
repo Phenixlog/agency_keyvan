@@ -13,7 +13,7 @@ export default async function StudioPage({
 }: {
   searchParams?: { brand?: string; focus?: string };
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -61,7 +61,7 @@ export default async function StudioPage({
 
   async function feedback(formData: FormData) {
     "use server";
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -77,7 +77,7 @@ export default async function StudioPage({
 
   async function regen(formData: FormData) {
     "use server";
-    const supabase = createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
