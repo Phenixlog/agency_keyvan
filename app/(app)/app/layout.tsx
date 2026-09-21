@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { LogOut } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
@@ -20,6 +21,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     const id = String(formData.get("brand") || "");
     if (!id) return;
     (await cookies()).set(ACTIVE_BRAND_COOKIE, id, { path: "/", maxAge: ONE_YEAR_SECONDS, sameSite: "lax" });
+    revalidatePath("/app", "layout");
   }
 
   return (
