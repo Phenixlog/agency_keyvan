@@ -5,6 +5,13 @@
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 45_000;
+/**
+ * Reasoning models (Gemini Flash among them, where it cannot be disabled) spend part of
+ * max_tokens thinking before they write. Without headroom a 400-token budget is consumed
+ * entirely by reasoning and the answer comes back empty with finish_reason "length".
+ * max_tokens is a ceiling, not a cost: unused headroom is free.
+ */
+const REASONING_HEADROOM_TOKENS = 2_000;
 
 /** Deep reasoning on a brand: run once per onboarding / explicit rebuild. */
 export const MODEL_ANALYSIS =
@@ -26,7 +33,7 @@ export function isLlmConfigured(): boolean {
 
 type JsonSchema = Record<string, unknown>;
 
-export async function chatJson<T>(args: {
+type ChatJsonArgs = {
   model: string;
   system: string;
   user: string;
@@ -35,7 +42,21 @@ export async function chatJson<T>(args: {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
-}): Promise<T> {
+};
+
+const RETRYABLE = /non JSON|tronquée|vide/;
+
+/** Model output is not deterministic: a malformed or truncated answer gets one second chance. */
+export async function chatJson<T>(args: ChatJsonArgs): Promise<T> {
+  try {
+    return await chatJsonOnce<T>(args);
+  } catch (e) {
+    if (e instanceof LlmError && RETRYABLE.test(e.message)) return chatJsonOnce<T>(args);
+    throw e;
+  }
+}
+
+async function chatJsonOnce<T>(args: ChatJsonArgs): Promise<T> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new LlmError("OPENROUTER_API_KEY manquante");
 
@@ -55,7 +76,9 @@ export async function chatJson<T>(args: {
         { role: "system", content: args.system },
         { role: "user", content: args.user },
       ],
-      max_tokens: args.maxTokens ?? 2000,
+      max_tokens: (args.maxTokens ?? 2000) + REASONING_HEADROOM_TOKENS,
+      // Structured extraction and short rewrites do not need long deliberation.
+      reasoning: { effort: "low" },
       temperature: args.temperature ?? 0.4,
       response_format: {
         type: "json_schema",
@@ -69,12 +92,16 @@ export async function chatJson<T>(args: {
     throw new LlmError(`OpenRouter ${res.status}: ${detail}`);
   }
   const body = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { finish_reason?: string; message?: { content?: string } }[];
     error?: { message?: string };
   };
   if (body.error?.message) throw new LlmError(`OpenRouter: ${body.error.message}`);
 
-  const content = body.choices?.[0]?.message?.content;
+  const choice = body.choices?.[0];
+  if (choice?.finish_reason === "length") {
+    throw new LlmError("Réponse tronquée : budget de tokens épuisé (réflexion du modèle comprise)");
+  }
+  const content = choice?.message?.content;
   if (!content) throw new LlmError("Réponse vide du modèle");
   try {
     return JSON.parse(extractJson(content)) as T;
@@ -83,8 +110,11 @@ export async function chatJson<T>(args: {
   }
 }
 
-/** Some providers wrap JSON in a markdown fence despite response_format. */
+/** Providers sometimes wrap the JSON in a markdown fence or add a sentence around it. */
 export function extractJson(content: string): string {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  return (fenced ? fenced[1] : content).trim();
+  const text = (fenced ? fenced[1] : content).trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  return start >= 0 && end > start ? text.slice(start, end + 1) : text;
 }
