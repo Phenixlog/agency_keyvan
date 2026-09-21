@@ -48,7 +48,17 @@ export default async function LoginPage({
         password,
       });
       if (error || !data?.user) {
-        nextPath = "/login?error=badcreds";
+        // Never log the password. The code tells a wrong password from an
+        // unconfirmed e-mail or a rate limit, which need different fixes.
+        console.warn(
+          `[login] refus Supabase pour ${email}: code=${error?.code ?? "?"} status=${error?.status ?? "?"} message=${error?.message ?? "aucun utilisateur renvoyé"}`
+        );
+        nextPath =
+          error?.code === "email_not_confirmed"
+            ? "/login?error=unconfirmed"
+            : error?.status === 429
+            ? "/login?error=ratelimit"
+            : "/login?error=badcreds";
       } else {
         // Ensure org/membership (uses service-role bootstrap when available)
         await getOrCreateDefaultOrgForUser(data.user.id, data.user.email ?? undefined);
@@ -81,6 +91,10 @@ export default async function LoginPage({
       ? "Identifiants invalides. Vérifiez votre e‑mail et votre mot de passe."
       : error === "missing"
       ? "Veuillez saisir un e‑mail et un mot de passe."
+      : error === "unconfirmed"
+      ? "Votre e‑mail n’est pas encore confirmé. Cliquez sur le lien reçu par e‑mail, ou utilisez le lien magique."
+      : error === "ratelimit"
+      ? "Trop de tentatives. Patientez une minute avant de réessayer."
       : error === "server"
       ? "Connexion réussie, mais la préparation de votre espace a échoué. Réessayez."
       : "";
