@@ -32,6 +32,10 @@
   --shadow-lift: 0 8px 24px rgba(26, 24, 21, 0.08);
   --shadow-float: 0 16px 48px rgba(26, 24, 21, 0.14);
 
+  --text-hero: 72px;
+  --text-hero--line-height: 1;
+  --text-hero--letter-spacing: -0.02em;
+  --text-hero--font-weight: 400;
   --text-display: 44px;
   --text-display--line-height: 1.05;
   --text-display--letter-spacing: -0.01em;

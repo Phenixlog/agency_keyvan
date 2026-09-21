@@ -1,4 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Logo } from "@/components/brand/Logo";
+import { Field, Input, Notice } from "@/components/ui";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrCreateDefaultOrgForUser } from "@/lib/orgs";
 
@@ -7,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({
   searchParams: searchParamsPromise,
 }: {
-  searchParams?: Promise<{ sent?: string; email?: string; error?: string }>;
+  searchParams?: Promise<{ sent?: string; email?: string; error?: string; next?: string }>;
 }) {
   const searchParams = await searchParamsPromise;
   async function sendMagicLink(formData: FormData) {
@@ -68,7 +72,9 @@ export default async function LoginPage({
           .order("created_at", { ascending: false })
           .limit(1);
         const latest = existingOb && existingOb.length > 0 ? existingOb[0] : null;
-        nextPath = latest?.status === "completed" ? "/app" : "/onboarding";
+        const wanted = String(formData.get("next") || "");
+        const safeNext = /^\/(app|onboarding)(\/[\w\-/]*)?$/.test(wanted) ? wanted : null;
+        nextPath = safeNext ?? (latest?.status === "completed" ? "/app" : "/onboarding");
       }
     } catch (e) {
       console.error("[login] échec après authentification:", e);
@@ -94,99 +100,45 @@ export default async function LoginPage({
       ? "Connexion réussie, mais la préparation de votre espace a échoué. Réessayez."
       : "";
 
+  const next = searchParams?.next ?? "";
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-paper px-6 py-16">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-black/5">
-        <h1 className="text-2xl font-semibold text-zinc-900">Connexion</h1>
-        {errorMessage ? (
-          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        ) : null}
+    <main className="flex min-h-screen items-start justify-center p-4 md:items-center md:p-8">
+      <div className="grid w-full max-w-md grid-cols-[minmax(0,1fr)] gap-6 rounded-shell bg-shell p-4 md:p-6">
+        <Link href="/" aria-label="Accueil" className="px-2">
+          <Logo />
+        </Link>
 
-        <h2 className="mt-5 text-sm font-semibold text-zinc-900">
-          Lien magique
-        </h2>
-        <p className="mt-1 text-sm text-zinc-700">
-          Recevez un lien de connexion sécurisé par e‑mail.
-        </p>
-        <form action={sendMagicLink} className="mt-6 space-y-4">
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-zinc-800"
-            >
-              E‑mail
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              placeholder="vous@entreprise.com"
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 placeholder-zinc-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </div>
-          <button
-            type="submit"
-            className="inline-flex w-full items-center justify-center rounded-md bg-accent px-4 py-2 text-white hover:opacity-90"
-          >
-            Envoyer le lien
-          </button>
-        </form>
-        {sent ? (
-          <p className="mt-4 text-sm text-emerald-700">
-            Si un compte existe pour cet e‑mail, un lien vous a été envoyé.
-          </p>
-        ) : null}
+        <section className="grid gap-6 rounded-card bg-card p-6 md:p-8">
+          <h1 className="font-display text-h1 text-ink">Connexion</h1>
+          {errorMessage ? <Notice tone="danger">{errorMessage}</Notice> : null}
+          {sent ? <Notice tone="success">Si un compte existe pour cet e‑mail, un lien vous a été envoyé.</Notice> : null}
 
-        <div className="my-8 h-px bg-zinc-200" />
+          <form action={passwordLogin} className="grid gap-4">
+            <input type="hidden" name="next" value={next} />
+            <Field label="E‑mail">
+              <Input name="email" type="email" required autoComplete="email" placeholder="vous@studio.fr" />
+            </Field>
+            <Field label="Mot de passe">
+              <Input name="password" type="password" required autoComplete="current-password" />
+            </Field>
+            <SubmitButton pendingLabel="Connexion…">Se connecter</SubmitButton>
+          </form>
+        </section>
 
-        <h2 className="text-sm font-semibold text-zinc-900">
-          E‑mail + mot de passe
-        </h2>
-        <form action={passwordLogin} className="mt-4 space-y-4">
+        <section className="grid gap-4 rounded-card bg-card p-6 md:p-8">
           <div>
-            <label
-              htmlFor="pw-email"
-              className="block text-sm font-medium text-zinc-800"
-            >
-              E‑mail
-            </label>
-            <input
-              id="pw-email"
-              name="email"
-              type="email"
-              required
-              placeholder="vous@entreprise.com"
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 placeholder-zinc-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
+            <h2 className="text-title text-ink">Sans mot de passe</h2>
+            <p className="text-small text-mute">Recevez un lien de connexion par e‑mail.</p>
           </div>
-          <div>
-            <label
-              htmlFor="pw-password"
-              className="block text-sm font-medium text-zinc-800"
-            >
-              Mot de passe
-            </label>
-            <input
-              id="pw-password"
-              name="password"
-              type="password"
-              required
-              placeholder="••••••••"
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 placeholder-zinc-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </div>
-          <button
-            type="submit"
-            className="inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-white hover:opacity-90"
-          >
-            Se connecter
-          </button>
-        </form>
+          <form action={sendMagicLink} className="grid gap-4">
+            <Field label="E‑mail">
+              <Input name="email" type="email" required autoComplete="email" placeholder="vous@studio.fr" />
+            </Field>
+            <SubmitButton variant="soft" pendingLabel="Envoi…">Envoyer le lien</SubmitButton>
+          </form>
+        </section>
       </div>
     </main>
   );
 }
-

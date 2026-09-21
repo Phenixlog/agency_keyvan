@@ -58,6 +58,8 @@ export const T = {
       /** Métadonnées : versions, formats, dates — les « annotations d'épreuve ». */
       meta: "JetBrains Mono",
     },
+    /** Page publique uniquement. */
+    hero: { size: 72, weight: 400, lineHeight: 1, tracking: -0.02 },
     display: { size: 44, weight: 400, lineHeight: 1.05, tracking: -0.01 },
     h1: { size: 32, weight: 400, lineHeight: 1.1, tracking: -0.01 },
     h2: { size: 20, weight: 600, lineHeight: 1.3, tracking: -0.01 },
