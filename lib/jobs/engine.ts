@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { acceptedChoices, getMediumBrief, guidanceWithAnswers } from "@/lib/expertise";
 import { fetchTaskResult, hashForFilename, submitImageTask } from "@/lib/wavespeed";
 import {
   composeImagePrompt,
@@ -35,6 +36,10 @@ type GenerationArgs = {
   parentOutId?: string | null;
   /** Ratio and medium when `format` is "custom". */
   custom?: CustomFormat | null;
+  /** The user's picks among the questions of the medium's expertise brief. */
+  answers?: Record<string, string>;
+  /** Medium guidance already resolved by the caller (the three proposals of a brief share one). */
+  mediumGuidance?: string;
 };
 
 const POLL_INTERVAL_MS = 800;
@@ -48,8 +53,21 @@ export const PROPOSALS_PER_BRIEF = 3;
  */
 export async function queueProposals(args: GenerationArgs & { format: ImageFormat }, count = PROPOSALS_PER_BRIEF) {
   const batchId = crypto.randomUUID();
-  const results = await Promise.all(Array.from({ length: count }, () => queueImageGeneration({ ...args, batchId })));
+  const mediumGuidance = await resolveMediumGuidance(args);
+  const results = await Promise.all(Array.from({ length: count }, () => queueImageGeneration({ ...args, batchId, mediumGuidance })));
   return { batchId, jobIds: results.map((r) => r.jobId) };
+}
+
+/** What a specialist of this medium knows, plus the user's choices: replaces the catalogue's one-liner. */
+async function resolveMediumGuidance(args: GenerationArgs & { format: ImageFormat }): Promise<string> {
+  if (args.mediumGuidance) return args.mediumGuidance;
+  const { brief } = await getMediumBrief({ orgId: args.orgId, userId: args.userId, format: args.format, custom: args.custom });
+  const answers = args.answers ?? {};
+  const given = Object.keys(answers).length;
+  const kept = acceptedChoices(brief, answers).length;
+  // Answers are only valid against the brief the user saw. Losing some means the brief changed in between: worth knowing.
+  if (kept < given) console.warn(`[expertise] ${given - kept} réponse(s) sur ${given} ignorée(s) : absentes de la fiche « ${args.format} » en vigueur.`);
+  return guidanceWithAnswers(brief, answers);
 }
 
 export function queueSocialGeneration(args: GenerationArgs) {
@@ -61,6 +79,7 @@ export async function queueImageGeneration(
 ): Promise<{ jobId: string }> {
   const supabase = await createSupabaseServerClient();
   const format = resolveFormat(args.format, args.custom);
+  const mediumGuidance = await resolveMediumGuidance(args);
   const mode: ImageMode = args.referenceUrl ? (args.mode === "retouch" ? "retouch" : "restage") : "describe";
 
   // Fetch latest OS + Mega
@@ -88,7 +107,7 @@ export async function queueImageGeneration(
     mega: normalizeMega(mega?.content),
     brief: args.brief,
     format: format.key,
-    direction: format.direction,
+    direction: mediumGuidance,
     mode,
     subject: args.subject,
     instruction: args.instruction,

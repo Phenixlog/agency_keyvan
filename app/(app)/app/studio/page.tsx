@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Archive, ArchiveRestore, CalendarPlus, Clock, Download, ImageOff, MessageSquareText, Pin, Wand2 } from "lucide-react";
+import { Archive, ArchiveRestore, CalendarPlus, Clock, Download, ImageOff, MessageSquareText, Pin, Shirt, Wand2, X } from "lucide-react";
 import { formatLabel } from "@/components/app/OutTile";
 import { AssetUploader } from "@/components/studio/AssetUploader";
 import { FormatPicker } from "@/components/studio/FormatPicker";
@@ -9,7 +9,7 @@ import { SubmitButton } from "@/components/ui/SubmitButton";
 import { ASSET_KINDS, listAssets } from "@/lib/assets";
 import { ASPECT_RATIOS, FORMAT_FAMILIES, IMAGE_FORMATS, OFFERED_FORMATS } from "@/lib/brand-os";
 import { PROPOSALS_PER_BRIEF } from "@/lib/jobs/engine";
-import { outImageUrl, type OutPayload, type OutStatus } from "@/lib/outs";
+import { isStagedCreation, outImageUrl, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
 import { createProposals, removeAsset, retouch, setStatus } from "./actions";
@@ -32,11 +32,11 @@ const TAB = "whitespace-nowrap rounded-pill px-4 py-2 text-small text-mute trans
 export default async function StudioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string; focus?: string; lot?: string; brief?: string }>;
+  searchParams: Promise<{ vue?: string; focus?: string; lot?: string; brief?: string; ref?: string }>;
 }) {
   const { brand, os, mega } = await getWorkspace();
   if (!brand) redirect("/app/clients");
-  const { vue, focus, lot, brief: suggestedBrief } = await searchParams;
+  const { vue, focus, lot, brief: suggestedBrief, ref } = await searchParams;
   const library = vue === "phototheque";
   const view: View = vue && vue in VIEWS ? (vue as View) : "actives";
 
@@ -46,6 +46,14 @@ export default async function StudioPage({
     supabase.from("outs").select("id,status,created_at,payload").eq("brand_id", brand.id).in("status", [...VIEWS[view].statuses]).order("created_at", { ascending: false }),
   ]);
   const back = `/app/studio?vue=${view}`;
+
+  // "Mettre en situation": a creation (a T-shirt artwork…) becomes the reference of the next ones.
+  const { data: refOut } =
+    ref && /^[0-9a-f-]{36}$/i.test(ref)
+      ? await supabase.from("outs").select("id,payload").eq("id", ref).eq("brand_id", brand.id).maybeSingle()
+      : { data: null };
+  const refPayload = (refOut?.payload ?? null) as OutPayload | null;
+  const refSrc = outImageUrl(refPayload);
   const fresh = (outs ?? []).filter((out) => lot && (out.payload as OutPayload | null)?.batch_id === lot);
   const failed = lot ? PROPOSALS_PER_BRIEF - fresh.length : 0;
   const rules = mega?.rules.length ?? 0;
@@ -131,6 +139,23 @@ export default async function StudioPage({
                   <Textarea name="brief" rows={3} maxLength={800} defaultValue={suggestedBrief?.slice(0, 800) ?? ""} placeholder="Un bol fumant sur une table en bois, lumière du matin…" />
                 </Field>
 
+                {refOut && refSrc ? (
+                  <div className="flex items-center gap-3 rounded-inner bg-tint p-2 pr-3">
+                    <input type="hidden" name="refOutId" value={refOut.id as string} />
+                    <span className="relative block size-14 flex-none overflow-hidden rounded-inner bg-soft">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={refSrc} alt="" className="absolute inset-0 size-full object-cover" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-mono text-meta text-mute">Mise en situation de cette création</span>
+                      <span className="block truncate text-small text-ink">Choisissez le support (Textile → « porté », Signalétique, packaging…) : le visuel y est reproduit tel quel.</span>
+                    </span>
+                    <Link href="/app/studio" aria-label="Ne plus partir de cette création" className="grid size-8 flex-none place-items-center rounded-pill text-mute transition duration-(--duration-fast) ease-cimaise hover:bg-card hover:text-ink">
+                      <X size={16} strokeWidth={1.75} />
+                    </Link>
+                  </div>
+                ) : null}
+
                 <FormatPicker
                   formats={OFFERED_FORMATS.map((key) => {
                     const { label, hint, family, aspectRatio, resolution } = IMAGE_FORMATS[key];
@@ -138,7 +163,7 @@ export default async function StudioPage({
                   })}
                   families={FORMAT_FAMILIES}
                   ratios={ASPECT_RATIOS}
-                  defaultFormat="social_square"
+                  defaultFormat={refOut ? "tshirt_mockup" : "social_square"}
                 />
 
                 <fieldset className="grid gap-2">
@@ -277,6 +302,9 @@ export default async function StudioPage({
                               <SubmitButton variant="soft" pendingLabel="Retouche… (≈ 30 s)" className="justify-self-start">Retoucher</SubmitButton>
                             </form>
                           </details>
+                          <Link href={`/app/studio?ref=${out.id}`} className="flex items-center gap-2 text-small font-semibold text-ink transition duration-(--duration-fast) ease-cimaise hover:text-mute">
+                            <Shirt size={16} strokeWidth={1.75} /> Mettre en situation (tee-shirt, sac, vitrine…)
+                          </Link>
                           <Link href={`/app/expert?image=${out.id}`} className="flex items-center gap-2 text-small font-semibold text-ink transition duration-(--duration-fast) ease-cimaise hover:text-mute">
                             <MessageSquareText size={16} strokeWidth={1.75} /> C’est un problème de marque : en parler à l’expert
                           </Link>
@@ -289,8 +317,9 @@ export default async function StudioPage({
                           <div>
                             <dt><Meta>Origine</Meta></dt>
                             <dd className="text-small text-ink">
-                              {MODE_LABEL[payload?.mode ?? "describe"]}
-                              {payload?.subject ? ` (« ${payload.subject} »)` : ""}
+                              {isStagedCreation(payload)
+                                ? "Mise en situation d’une création du mur"
+                                : `${MODE_LABEL[payload?.mode ?? "describe"]}${payload?.subject ? ` (« ${payload.subject} »)` : ""}`}
                             </dd>
                           </div>
                           <div>

@@ -45,13 +45,24 @@ type ChatJsonArgs = {
 };
 
 const RETRYABLE = /non JSON|tronquée|vide/;
+/** Passing refusals from the gateway (rate or admission control, upstream hiccup): worth one retry after a pause. */
+const TRANSIENT = /^OpenRouter (429|502|503|504):/;
+const TRANSIENT_PAUSE_MS = 1500;
 
-/** Model output is not deterministic: a malformed or truncated answer gets one second chance. */
+/**
+ * Model output is not deterministic: a malformed or truncated answer gets one second chance.
+ * So does a transient gateway refusal, after a short pause.
+ */
 export async function chatJson<T>(args: ChatJsonArgs): Promise<T> {
   try {
     return await chatJsonOnce<T>(args);
   } catch (e) {
-    if (e instanceof LlmError && RETRYABLE.test(e.message)) return chatJsonOnce<T>(args);
+    if (!(e instanceof LlmError)) throw e;
+    if (TRANSIENT.test(e.message)) {
+      await new Promise((resolve) => setTimeout(resolve, TRANSIENT_PAUSE_MS));
+      return chatJsonOnce<T>(args);
+    }
+    if (RETRYABLE.test(e.message)) return chatJsonOnce<T>(args);
     throw e;
   }
 }

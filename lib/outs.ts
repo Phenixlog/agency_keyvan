@@ -26,6 +26,14 @@ export type OutPayload = {
   batch_id?: string | null;
 };
 
+/** Subject given to the editing model when the reference is one of our own creations ("Mettre en situation"). */
+export const CREATION_AS_REFERENCE = "the design shown in the reference image, reproduced faithfully and undistorted on the medium";
+
+/** A creation placed on a medium (T-shirt worn, shop window…), as opposed to a product photo from the library. */
+export function isStagedCreation(payload: OutPayload | null | undefined): boolean {
+  return payload?.mode === "restage" && (Boolean(payload.parent_out_id) || payload.subject === CREATION_AS_REFERENCE);
+}
+
 /** Prefer our Storage copy (stable) over the generator's CDN URL (may expire). */
 export function outImageUrl(payload: OutPayload | null | undefined): string | null {
   if (payload?.storage_path) {

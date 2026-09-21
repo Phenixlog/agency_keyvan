@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { archiveAsset, getAsset, registerAsset } from "@/lib/assets";
 import { OFFERED_FORMATS, resolveFormat, type CustomFormat, type ImageFormat } from "@/lib/brand-os";
 import { queueImageGeneration, queueProposals } from "@/lib/jobs/engine";
-import { outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
+import { CREATION_AS_REFERENCE, outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
 
@@ -27,6 +27,15 @@ function requestedFormat(formData: FormData): { format: ImageFormat; custom: Cus
   return { format: (OFFERED_FORMATS as string[]).includes(key) ? (key as ImageFormat) : "social_square", custom: null };
 }
 
+/** The user's picks among the brief's questions travel as `q:<id>` fields; they are validated against the brief later. */
+function answersFrom(formData: FormData): Record<string, string> {
+  const answers: Record<string, string> = {};
+  for (const [name, value] of formData.entries()) {
+    if (name.startsWith("q:") && typeof value === "string" && value) answers[name.slice(2)] = value.slice(0, 120);
+  }
+  return answers;
+}
+
 /**
  * Three proposals for one brief — from words, or from a photo of the client's real product.
  * Generation runs inside the action (≈ 30 s): callers show a pending SubmitButton.
@@ -37,15 +46,26 @@ export async function createProposals(formData: FormData) {
   const assetId = String(formData.get("assetId") || "");
   const asset = assetId ? await getAsset(brand.id, assetId) : null;
 
+  // "Mettre en situation": an existing creation (a T-shirt artwork…) becomes the reference to reproduce.
+  const refOutId = String(formData.get("refOutId") || "");
+  let refCreation: string | null = null;
+  if (!asset && /^[0-9a-f-]{36}$/i.test(refOutId)) {
+    const supabase = await createSupabaseServerClient();
+    const { data: out } = await supabase.from("outs").select("payload").eq("id", refOutId).eq("brand_id", brand.id).maybeSingle();
+    refCreation = outImageUrl((out?.payload ?? null) as OutPayload | null);
+  }
+
   const { batchId } = await queueProposals({
     orgId: brand.org_id,
     brandId: brand.id,
     userId,
     brief,
     ...requestedFormat(formData),
-    referenceUrl: asset?.url ?? null,
-    subject: asset?.label ?? null,
-    mode: asset ? "restage" : "describe",
+    answers: answersFrom(formData),
+    referenceUrl: asset?.url ?? refCreation,
+    subject: asset?.label ?? (refCreation ? CREATION_AS_REFERENCE : null),
+    mode: asset || refCreation ? "restage" : "describe",
+    parentOutId: refCreation ? refOutId : null,
   });
   redirect(`/app/studio?lot=${batchId}`);
 }

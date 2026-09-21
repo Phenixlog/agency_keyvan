@@ -55,6 +55,8 @@ export const FORMAT_FAMILIES = {
   web: "Site & e-commerce",
   ads: "Publicité",
   print: "Impression",
+  textile: "Textile",
+  signage: "Signalétique",
   deck: "Présentations",
 } as const;
 export type FormatFamily = keyof typeof FORMAT_FAMILIES;
@@ -68,7 +70,15 @@ export type FormatSpec = {
   /** 1k for screens, 2k for large web surfaces, 4k for anything that gets printed. */
   resolution: "1k" | "2k" | "4k";
   kind: "social_post" | "print";
-  /** A format is more than a ratio: it tells the model how to compose for that medium. */
+  /**
+   * What comes out. photo: a scene · artwork: flat, print-ready design isolated on a plain
+   * background · mockup: the design shown on the real object · background: no subject at all.
+   */
+  nature?: "photo" | "artwork" | "mockup" | "background";
+  /**
+   * One line of composition guidance. It is only the seed and the fallback: the real expertise of
+   * a medium is its MediumBrief (lib/expertise), written by the analysis model and stored.
+   */
   direction: string;
   /** Kept only so older creations still show a label; not offered any more. */
   legacy?: true;
@@ -112,7 +122,7 @@ const FORMATS = {
     direction: "editorial article image (3:2): a scene that evokes the subject rather than showing a product, magazine-like framing" },
   newsletter_header: { label: "En-tête de newsletter", hint: "Le bandeau du haut de l’e-mail", family: "web", aspectRatio: "2:1", resolution: "1k", kind: "social_post",
     direction: "newsletter header (2:1): light, airy image that stays readable at 600 px wide, subject centred, soft background" },
-  brand_texture: { label: "Fond / texture de marque", hint: "Arrière-plans, aplats de site, papeterie", family: "web", aspectRatio: "1:1", resolution: "2k", kind: "social_post",
+  brand_texture: { label: "Fond / texture de marque", hint: "Arrière-plans, aplats de site, papeterie", family: "web", aspectRatio: "1:1", resolution: "2k", kind: "social_post", nature: "background",
     direction: "abstract brand texture: no subject, no object, only material, light and the brand palette (grain, fabric, clay, paper, shadows), even enough to sit behind text" },
 
   /* ---- Publicité ---- */
@@ -136,16 +146,56 @@ const FORMATS = {
     direction: `full-bleed portrait image for a flyer: ${FULL_BLEED}; the subject in the upper half, a calm lower half left free for practical information` },
   postcard: { label: "Carte postale", hint: "Remerciement, invitation, colis", family: "print", aspectRatio: "3:2", resolution: "2k", kind: "print",
     direction: `full-bleed image for a postcard: ${FULL_BLEED}; a single warm, generous scene that works without any text` },
-  rollup: { label: "Kakemono / roll-up", hint: "Salon, boutique, accueil", family: "print", aspectRatio: "1:2", resolution: "4k", kind: "print",
+  rollup: { label: "Kakemono / roll-up", hint: "Salon, boutique, accueil", family: "signage", aspectRatio: "1:2", resolution: "4k", kind: "print",
     direction: `full-bleed tall image for a roll-up banner: ${FULL_BLEED}; the subject at eye level in the upper third, the lower half plain (it is hidden by the stand and people)` },
   bookmark: { label: "Marque-page / étiquette volante", hint: "Glissé dans un colis", family: "print", aspectRatio: "1:3", resolution: "2k", kind: "print",
     direction: `full-bleed very tall narrow image: ${FULL_BLEED}; a detail or a texture of the product running vertically, calm top area` },
-  packaging_label: { label: "Étiquette / packaging", hint: "Fond d’étiquette, papier de soie, sticker", family: "print", aspectRatio: "1:1", resolution: "4k", kind: "print",
+  packaging_label: { label: "Étiquette / packaging", hint: "Fond d’étiquette, papier de soie, sticker", family: "print", aspectRatio: "1:1", resolution: "4k", kind: "print", nature: "artwork",
     direction: `flat graphic composition for a product label background: ${FULL_BLEED}; pattern, illustration or texture in the brand palette, no photograph of the product itself, an even central area left free for a name` },
   catalogue_cover: { label: "Couverture de catalogue / menu", hint: "Lookbook, carte, dossier", family: "print", aspectRatio: "3:4", resolution: "4k", kind: "print",
     direction: `full-bleed cover image for a catalogue: ${FULL_BLEED}; one iconic scene that sums up the brand, a calm upper third left free for a title` },
-  shop_window: { label: "Vitrine / PLV", hint: "Adhésif de vitrine, présentoir", family: "print", aspectRatio: "3:4", resolution: "4k", kind: "print",
+  shop_window: { label: "Vitrophanie / vitrine", hint: "Adhésif de vitrine, présentoir", family: "signage", aspectRatio: "3:4", resolution: "4k", kind: "print",
     direction: `full-bleed image for a shop window display: ${FULL_BLEED}; large simple shapes and strong colour readable from across the street, one subject` },
+
+  /* ---- Textile : le visuel à imprimer, et sa mise en situation ---- */
+  tshirt_artwork: { label: "Tee-shirt · visuel à imprimer", hint: "À plat, prêt pour l’atelier (sérigraphie, broderie, numérique)", family: "textile", aspectRatio: "3:4", resolution: "4k", kind: "print", nature: "artwork",
+    direction: "flat print-ready artwork for the chest print of a T-shirt: the design alone, centred, isolated on a plain solid background with no fabric, no garment, no model and no mock-up; few flat colours from the brand palette, clean shapes, no gradients, no photographic detail, no readable text" },
+  tshirt_mockup: { label: "Tee-shirt · porté", hint: "La photo de quelqu’un qui le porte", family: "textile", aspectRatio: "4:5", resolution: "2k", kind: "social_post", nature: "mockup",
+    direction: "realistic photograph of a person wearing a T-shirt printed with the design on the chest, the design clearly visible and undistorted on it, natural light, a setting that suits the brand, the person or object cropped so the printed area is the hero" },
+  sweat_artwork: { label: "Sweat / hoodie · visuel à imprimer", hint: "Cœur, poitrine ou dos", family: "textile", aspectRatio: "3:4", resolution: "4k", kind: "print", nature: "artwork",
+    direction: "flat print-ready artwork for the print of a sweatshirt or hoodie: the design alone, centred, isolated on a plain solid background with no fabric, no garment, no model and no mock-up; few flat colours from the brand palette, clean shapes, no gradients, no photographic detail, no readable text" },
+  sweat_mockup: { label: "Sweat / hoodie · porté", hint: "Mise en situation", family: "textile", aspectRatio: "4:5", resolution: "2k", kind: "social_post", nature: "mockup",
+    direction: "realistic photograph of a person wearing a sweatshirt printed or embroidered with the design, the design clearly visible and undistorted on it, natural light, a setting that suits the brand, the person or object cropped so the printed area is the hero" },
+  cap_artwork: { label: "Casquette · visuel à broder", hint: "Petit, simple, lisible de loin", family: "textile", aspectRatio: "2:1", resolution: "2k", kind: "print", nature: "artwork",
+    direction: "flat print-ready artwork for the small front panel of a cap, embroidery-friendly: very few colours, thick shapes, no fine detail: the design alone, centred, isolated on a plain solid background with no fabric, no garment, no model and no mock-up; few flat colours from the brand palette, clean shapes, no gradients, no photographic detail, no readable text" },
+  cap_mockup: { label: "Casquette · portée", hint: "Mise en situation", family: "textile", aspectRatio: "4:5", resolution: "2k", kind: "social_post", nature: "mockup",
+    direction: "realistic photograph of a person wearing a cap with the design embroidered on the front panel, the design clearly visible and undistorted on it, natural light, a setting that suits the brand, the person or object cropped so the printed area is the hero" },
+  apron_artwork: { label: "Tablier · visuel à imprimer", hint: "Restauration, atelier, boutique", family: "textile", aspectRatio: "3:4", resolution: "4k", kind: "print", nature: "artwork",
+    direction: "flat print-ready artwork for the bib of a work apron: the design alone, centred, isolated on a plain solid background with no fabric, no garment, no model and no mock-up; few flat colours from the brand palette, clean shapes, no gradients, no photographic detail, no readable text" },
+  apron_mockup: { label: "Tablier · porté", hint: "Mise en situation au travail", family: "textile", aspectRatio: "4:5", resolution: "2k", kind: "social_post", nature: "mockup",
+    direction: "realistic photograph of a person at work wearing an apron printed with the design on the bib, the design clearly visible and undistorted on it, natural light, a setting that suits the brand, the person or object cropped so the printed area is the hero" },
+  tote_artwork: { label: "Sac en toile · visuel à imprimer", hint: "Tote bag, pochon, emballage textile", family: "textile", aspectRatio: "3:4", resolution: "4k", kind: "print", nature: "artwork",
+    direction: "flat print-ready artwork for one face of a canvas tote bag: the design alone, centred, isolated on a plain solid background with no fabric, no garment, no model and no mock-up; few flat colours from the brand palette, clean shapes, no gradients, no photographic detail, no readable text" },
+  tote_mockup: { label: "Sac en toile · porté", hint: "Mise en situation", family: "textile", aspectRatio: "4:5", resolution: "2k", kind: "social_post", nature: "mockup",
+    direction: "realistic photograph of a canvas tote bag printed with the design, carried on a shoulder or hanging in a shop, the design clearly visible and undistorted on it, natural light, a setting that suits the brand, the person or object cropped so the printed area is the hero" },
+
+  /* ---- Signalétique image (la signalétique directionnelle dépend du chantier « texte ») ---- */
+  banner_tarp: { label: "Bâche / banderole", hint: "Façade, événement, clôture", family: "signage", aspectRatio: "3:1", resolution: "4k", kind: "print",
+    direction: `very wide image for a printed tarpaulin banner seen from the street, large simple shapes, strong contrast, nothing important near the edges where the eyelets go: ${FULL_BLEED}` },
+  site_hoarding: { label: "Palissade de chantier", hint: "Habillage de travaux, vitrine en attente", family: "signage", aspectRatio: "21:9", resolution: "4k", kind: "print",
+    direction: `panoramic image for a construction hoarding, a continuous scene that can be read while walking past, repeatable rhythm, no single small focal point: ${FULL_BLEED}` },
+  billboard: { label: "Panneau 4×3", hint: "Affichage grand format", family: "signage", aspectRatio: "4:3", resolution: "4k", kind: "print",
+    direction: `billboard image read in under three seconds from a moving car: one huge subject, extreme simplicity, maximum contrast: ${FULL_BLEED}` },
+  vehicle_wrap: { label: "Covering de véhicule", hint: "Flanc de camionnette, utilitaire", family: "signage", aspectRatio: "21:9", resolution: "4k", kind: "print",
+    direction: `very wide image for the side of a van, the subject in the central band away from wheel arches, handles and windows, flowing composition that survives being cut by doors: ${FULL_BLEED}` },
+  flag: { label: "Oriflamme / drapeau", hint: "Devant la boutique, en salon", family: "signage", aspectRatio: "1:3", resolution: "4k", kind: "print",
+    direction: `very tall narrow image for a feather flag that moves in the wind, one bold subject in the upper half, flat strong colours, readable when deformed: ${FULL_BLEED}` },
+  totem: { label: "Totem", hint: "Entrée, parking, zone commerciale", family: "signage", aspectRatio: "1:3", resolution: "4k", kind: "print",
+    direction: `very tall narrow image for a free-standing totem, the key subject at eye level in the upper third, calm lower part: ${FULL_BLEED}` },
+  pavement_sign: { label: "Stop-trottoir", hint: "Chevalet devant la boutique", family: "signage", aspectRatio: "2:3", resolution: "2k", kind: "print",
+    direction: `portrait image for a pavement A-board seen by pedestrians at three metres, one appetising subject, calm lower third left free for today's message: ${FULL_BLEED}` },
+  shop_fascia: { label: "Enseigne · fond de bandeau", hint: "Le visuel derrière le nom, posé ensuite", family: "signage", aspectRatio: "3:1", resolution: "4k", kind: "print",
+    direction: `very wide calm background for a shop fascia, texture and brand palette only, an even central area where the shop name will be placed later: ${FULL_BLEED}` },
 
   /* ---- Présentations ---- */
   slide_cover: { label: "Couverture de présentation", hint: "Première slide d’un deck", family: "deck", aspectRatio: "16:9", resolution: "2k", kind: "social_post",

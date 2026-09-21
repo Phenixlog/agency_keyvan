@@ -85,6 +85,7 @@ Aucune chrome avant OB‑06.
 - `lib/jobs/` · pipeline de génération (WaveSpeed) + persistance `jobs`/`outs`
 - `lib/brand-os/` · modèle Brand OS, schémas JSON, replis déterministes (`model.ts`, pur et testé) + orchestration LLM (`index.ts`)
 - `lib/llm/openrouter.ts` · client OpenRouter (sortie JSON stricte)
+- `lib/expertise/` · fiche d’expertise par support (`model.ts` pur et testé, `index.ts` lecture / rédaction / stockage) ; servie par `POST /api/expertise`
 - `docs/canon/` · placeholder pour le canon (à coller)
 - `docs/ADR-001-stack.md` · décision stack
 - `supabase/migrations/0001_init.sql` · schéma principal (RLS multi‑tenant)
@@ -94,6 +95,7 @@ Aucune chrome avant OB‑06.
 - `supabase/migrations/0005_expert_and_clients.sql` · table `expert_messages` (conversation + propositions) et colonne `brands.archived_at`. Rejouable ; le contrôle final doit renvoyer 5 lignes. Avant son application : l’expert fonctionne sans mémoriser la conversation, et l’archivage d’un client affiche un bandeau.
 - `supabase/migrations/0006_brand_shares.sql` · table `brand_shares` (jeton de 32 octets, révocable ; aucune politique pour les visiteurs anonymes). Contrôle final : 3 lignes. Avant son application, « Créer un lien public » affiche un bandeau.
 - `supabase/migrations/0007_brand_assets.sql` · table `brand_assets` (photothèque : ce que montre chaque photo). Les fichiers vont dans le bucket `outs`, sous `brands/<id>/references/`. Contrôle final : 3 lignes. Avant son application, la photothèque affiche un bandeau et le reste du Studio fonctionne.
+- `supabase/migrations/0008_medium_briefs.sql` · table `medium_briefs` (fiche d’expertise d’un support, rédigée une fois par le modèle, une par organisation et par support). Contrôle final : 3 lignes. Avant son application, les fiches sont gardées 30 minutes en mémoire puis réécrites.
 
 > Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 
