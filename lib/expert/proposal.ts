@@ -4,7 +4,7 @@
  * Module pur : il ne connaît ni la base ni le réseau, et ne fait confiance à aucune entrée.
  */
 // Type-only import: erased at runtime, so the node test runner never resolves the alias.
-import type { BrandOS, BrandStrategy, MegaPrompt } from "@/lib/brand-os/model";
+import type { BrandOS, BrandStrategy, BrandVoice, MegaPrompt } from "@/lib/brand-os/model";
 
 export type Proposal = {
   /** Le changement en une ligne, tel qu'il apparaîtra dans l'historique. */
@@ -16,6 +16,7 @@ export type Proposal = {
     audience?: string;
     promise?: string;
     tone?: string[];
+    voice?: Partial<BrandVoice>;
     pillars?: string[];
     visual?: { palette?: string[]; style?: string; mood?: string; avoid?: string[] };
     strategy?: Partial<BrandStrategy>;
@@ -89,6 +90,7 @@ export function parseProposal(input: unknown): Proposal | null {
   const d = data as Record<string, unknown>;
   const os = (d.brand_os ?? {}) as Record<string, unknown>;
   const visual = (os.visual ?? {}) as Record<string, unknown>;
+  const voice = (os.voice ?? {}) as Record<string, unknown>;
   const strategy = (os.strategy ?? {}) as Record<string, unknown>;
   const rules = (d.rules ?? {}) as Record<string, unknown>;
 
@@ -107,6 +109,7 @@ export function parseProposal(input: unknown): Proposal | null {
       audience: str(os.audience, MAX_TEXT),
       promise: str(os.promise, MAX_TEXT),
       tone: list(os.tone),
+      voice: compact({ says: list(voice.says), never: list(voice.never) }),
       pillars: list(os.pillars),
       visual: compact({ palette: list(visual.palette), style: str(visual.style, MAX_TEXT), mood: str(visual.mood, MAX_TEXT), avoid: list(visual.avoid) }),
       strategy: compact({ objectives: list(strategy.objectives), channels: list(strategy.channels), angles: list(strategy.angles), rhythm: str(strategy.rhythm, MAX_TEXT) }),
@@ -130,10 +133,12 @@ export function applyToBrandOS(os: BrandOS, proposal: Proposal): BrandOS {
   const patch = proposal.brand_os;
   if (!patch) return os;
   const strategy = patch.strategy ? { ...EMPTY_STRATEGY, ...os.strategy, ...patch.strategy } : os.strategy;
+  const voice = patch.voice ? { says: [], never: [], ...os.voice, ...patch.voice } : os.voice;
   return {
     ...os,
     ...compact({ positioning: patch.positioning, audience: patch.audience, promise: patch.promise, tone: patch.tone, pillars: patch.pillars }),
     visual: { ...os.visual, ...patch.visual },
+    ...(voice ? { voice } : {}),
     ...(strategy ? { strategy } : {}),
   };
 }
@@ -168,6 +173,8 @@ export function describeChanges(os: BrandOS, mega: MegaPrompt, proposal: Proposa
     ["Cible", os.audience, nextOS.audience],
     ["Promesse", os.promise, nextOS.promise],
     ["Ton", os.tone, nextOS.tone],
+    ["Voix · elle dirait", os.voice?.says, nextOS.voice?.says],
+    ["Voix · jamais", os.voice?.never, nextOS.voice?.never],
     ["Piliers éditoriaux", os.pillars, nextOS.pillars],
     ["Palette", os.visual.palette, nextOS.visual.palette],
     ["Style d’image", os.visual.style, nextOS.visual.style],

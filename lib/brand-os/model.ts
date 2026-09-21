@@ -16,9 +16,13 @@ export type BrandOS = {
     mood: string;
     avoid: string[];
   };
+  /** Ce que la marque dirait, et ne dirait jamais : là où le client se reconnaît (ou pas). */
+  voice?: BrandVoice;
   /** Décisions marketing prises avec l'expert. Absent tant qu'on n'en a pas parlé. */
   strategy?: BrandStrategy;
 };
+
+export type BrandVoice = { says: string[]; never: string[] };
 
 export type BrandStrategy = {
   objectives: string[];
@@ -71,20 +75,34 @@ const STRING_ARRAY = { type: "array", items: { type: "string" } } as const;
 export const BRAND_OS_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "positioning", "audience", "promise", "tone", "pillars", "visual", "mega_intro"],
+  required: ["name", "positioning", "audience", "promise", "tone", "voice", "pillars", "visual", "mega_intro"],
   properties: {
     name: { type: "string", description: "Nom de la marque tel qu'elle se présente" },
     positioning: { type: "string", description: "1-2 phrases : pour qui, quoi, en quoi c'est différent" },
     audience: { type: "string", description: "Cible principale, concrète" },
     promise: { type: "string", description: "La promesse de marque en une phrase" },
     tone: { ...STRING_ARRAY, description: "3 à 5 adjectifs de ton de voix" },
-    pillars: { ...STRING_ARRAY, description: "3 à 5 piliers éditoriaux (thèmes récurrents)" },
+    voice: {
+      type: "object",
+      additionalProperties: false,
+      required: ["says", "never"],
+      description: "La voix en exemples, pour que le client se reconnaisse",
+      properties: {
+        says: { ...STRING_ARRAY, description: "3 phrases courtes que cette marque écrirait telles quelles" },
+        never: { ...STRING_ARRAY, description: "3 phrases qu'elle n'écrirait jamais (clichés du secteur, ton contraire au sien)" },
+      },
+    },
+    pillars: { ...STRING_ARRAY, description: "3 à 5 piliers éditoriaux, chacun au format « Titre court : une ligne d'explication »" },
     visual: {
       type: "object",
       additionalProperties: false,
       required: ["palette", "style", "mood", "avoid"],
       properties: {
-        palette: { ...STRING_ARRAY, description: "3 à 5 couleurs, en mots ou hex si identifiables" },
+        palette: {
+          ...STRING_ARRAY,
+          description:
+            "3 à 5 couleurs, de la plus dominante à la moins présente, CHACUNE au format « nom #RRGGBB ». Si le corpus ne donne pas le code, estime-le d'après le nom : une couleur sans code ne peut pas être affichée.",
+        },
         style: { type: "string", description: "Style d'image : photo, illustration, 3D, textures, lumière" },
         mood: { type: "string", description: "Ambiance émotionnelle des visuels" },
         avoid: { ...STRING_ARRAY, description: "Ce que les visuels doivent éviter" },
@@ -170,6 +188,7 @@ export function fallbackBrandOS(source: string, nameHint?: string | null): Brand
     audience: "À préciser",
     promise: sentences[1] || "À préciser",
     tone: ["clair", "direct"],
+    voice: { says: [], never: [] },
     pillars: sentences.slice(2, 5),
     visual: {
       // Hex codes written in the source are facts, not guesses: keep them so the workspace can retint.
@@ -291,4 +310,40 @@ export function fallbackMergeRules(rules: string[], feedback: string): { rules: 
   const note = feedback.trim().slice(0, 200);
   if (!note) return { rules, note: "Aucun changement" };
   return { rules: Array.from(new Set([...rules, note])).slice(-MAX_RULES), note };
+}
+
+/* ------------------------------------------------------------------ */
+/* Lecture pour la planche de marque                                    */
+/* ------------------------------------------------------------------ */
+
+export type PaletteColor = { name: string; hex: string | null };
+
+/**
+ * La palette est stockée en texte (« terracotta #C4572E », ou un simple « ivoire » pour les
+ * anciennes fiches). Pour l'afficher il faut un nom et, si possible, un code.
+ */
+export function parsePalette(palette: readonly string[] | null | undefined): PaletteColor[] {
+  return (palette ?? [])
+    .map((entry) => {
+      const match = entry.match(/#([0-9a-f]{6}|[0-9a-f]{3})\b/i);
+      let hex: string | null = null;
+      if (match) {
+        const raw = match[1];
+        hex = `#${raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw}`.toUpperCase();
+      }
+      const name = entry
+        .replace(/#[0-9a-f]{3,6}\b/gi, "")
+        .replace(/[()\[\]]/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/^[\s,;:·-]+|[\s,;:·-]+$/g, "");
+      return { name: name || (hex ?? ""), hex };
+    })
+    .filter((color) => color.name);
+}
+
+/** « Le geste : chaque pièce tournée à la main » → titre + ligne. Un pilier sans « : » est un titre seul. */
+export function parsePillar(pillar: string): { title: string; line: string } {
+  const index = pillar.indexOf(" : ");
+  if (index < 0 || index > 60) return { title: pillar.trim(), line: "" };
+  return { title: pillar.slice(0, index).trim(), line: pillar.slice(index + 3).trim() };
 }

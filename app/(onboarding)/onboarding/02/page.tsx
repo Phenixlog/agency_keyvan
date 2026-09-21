@@ -3,7 +3,7 @@ import { ArrowRight, Globe, TextQuote } from "lucide-react";
 import { Step } from "@/components/onboarding/Step";
 import { Meta } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
-import { extractUrl, requireOnboardingBrand, scrapeUrl, upsertOnboardingSession } from "@/lib/onboarding";
+import { extractUrl, requireOnboardingBrand, saveBrandSource, scrapeSite, upsertOnboardingSession } from "@/lib/onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,8 @@ export default async function OB02() {
     const seed = session.seed || "";
     const url = extractUrl(seed);
     if (url) {
-      const corpus = await scrapeUrl(url);
+      const { text: corpus, assets } = await scrapeSite(url);
+      await saveBrandSource(brandId, { url, assets, readChars: corpus.length });
       await upsertOnboardingSession({
         userId: user.id,
         orgId: session.org_id,

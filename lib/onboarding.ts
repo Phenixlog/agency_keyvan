@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { brandColorFromPalette } from "@/lib/tokens";
-import { BlockedUrlError, safeFetchText } from "@/lib/safe-fetch";
+import { BlockedUrlError, assertPublicUrl, safeFetchText } from "@/lib/safe-fetch";
+import { extractSiteAssets, type SiteAssets } from "@/lib/site-assets";
 import { buildBrandOS, isBrandOS, renderSummary, type BrandOS, type MegaPrompt } from "@/lib/brand-os";
 
 export type OnboardingSession = {
@@ -88,15 +89,6 @@ export async function createDraftBrand(args: {
     .single();
   if (error) throw error;
   return data as { id: string; name: string; slug: string; data: any };
-}
-
-export async function saveScrapeToBrand(brandId: string, corpus: string) {
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
-    .from("brands")
-    .update({ data: { corpus } })
-    .eq("id", brandId);
-  if (error) throw error;
 }
 
 export async function ensureDraftOSAndMega(args: {
@@ -186,23 +178,53 @@ export function extractUrl(seed?: string | null) {
   return m ? m[0] : null;
 }
 
-export async function scrapeUrl(url: string): Promise<string> {
+const NO_ASSETS: SiteAssets = { logo: null, image: null, siteName: null };
+
+/** Only keep asset addresses that are public http(s) URLs: they end up in an <img src> shown to users. */
+function publicOrNull(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return assertPublicUrl(url).toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Reads the brand's page once: its text for the analysis, and what its <head> says of its identity. */
+export async function scrapeSite(url: string): Promise<{ text: string; assets: SiteAssets }> {
   try {
     // The URL comes from user input: safeFetchText refuses non-public targets.
     const html = await safeFetchText(url);
+    const found = extractSiteAssets(html, url);
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    return text.slice(0, 20000);
+    return {
+      text: text.slice(0, 20000),
+      assets: { logo: publicOrNull(found.logo), image: publicOrNull(found.image), siteName: found.siteName },
+    };
   } catch (e) {
     if (e instanceof BlockedUrlError) {
       console.warn(`[onboarding] scrape bloqué: ${e.message}`);
     }
-    return "";
+    return { text: "", assets: NO_ASSETS };
   }
+}
+
+export async function scrapeUrl(url: string): Promise<string> {
+  return (await scrapeSite(url)).text;
+}
+
+/** Merges into brands.data (seed, url…): never replaces it. */
+export async function saveBrandSource(brandId: string, source: { url: string; assets: SiteAssets; readChars: number }) {
+  const supabase = await createSupabaseServerClient();
+  const { data: brand } = await supabase.from("brands").select("data").eq("id", brandId).maybeSingle();
+  const data = { ...((brand?.data as Record<string, unknown> | null) ?? {}), url: source.url, site: { ...source.assets, readChars: source.readChars, readAt: new Date().toISOString() } };
+  const { error } = await supabase.from("brands").update({ data }).eq("id", brandId);
+  if (error) throw error;
 }
 
 function deriveBrandName(seed?: string | null, url?: string | null) {

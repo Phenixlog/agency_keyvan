@@ -103,3 +103,10 @@ body {
 .hatch {
   background-image: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 10px);
 }
+
+/* Exporter en PDF : on imprime la planche, pas l'atelier. Les aplats sont le contenu, ils doivent sortir. */
+@media print {
+  @page { margin: 12mm; }
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  body { background: var(--color-card); }
+}

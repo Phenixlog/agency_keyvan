@@ -1,8 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildBrandOS, isBrandOS, normalizeMega, renderSummary, type BrandOS, type MegaPrompt } from "@/lib/brand-os";
-import { isMissingColumn } from "@/lib/db-errors";
+import { randomBytes } from "node:crypto";
+import { isForbidden, isMissingColumn, isMissingTable } from "@/lib/db-errors";
 import { applyToBrandOS, applyToMega, describeChanges, touches, type Proposal } from "@/lib/expert/proposal";
-import { extractUrl, scrapeUrl } from "@/lib/onboarding";
+import { extractUrl, saveBrandSource, scrapeSite } from "@/lib/onboarding";
 
 /**
  * Écritures sur une marque existante. Brand OS et mega-prompt sont versionnés séparément
@@ -71,13 +72,6 @@ async function insertMega(
   if (error) throw error;
 }
 
-/** Le propriétaire corrige le résumé : nouvelle version, canon et mega-prompt inchangés. */
-export async function saveBrandSummary(args: { brandId: string; orgId: string; userId: string; summary: string }) {
-  const supabase = await createSupabaseServerClient();
-  const os = await latestOS(supabase, args.brandId);
-  await insertOS(supabase, { ...args, version: (os?.version ?? 0) + 1, canon: os?.canon ?? {} });
-}
-
 /** La couleur qui reteinte l'atelier : placée en tête de palette, dans une nouvelle version. */
 export async function setBrandColor(args: { brandId: string; orgId: string; userId: string; hex: string }) {
   if (!/^#[0-9a-f]{6}$/i.test(args.hex)) throw new Error("Couleur invalide");
@@ -120,7 +114,13 @@ export async function rebuildBrandOS(args: { brandId: string; orgId: string; use
   ]);
   const seed = ((brand?.data as { seed?: string } | null)?.seed ?? "").trim();
   const url = extractUrl(seed);
-  const corpus = url ? await scrapeUrl(url) : "";
+  let corpus = "";
+  if (url) {
+    const site = await scrapeSite(url);
+    corpus = site.text;
+    // A re-analysis also refreshes the logo and the share image shown on the brand board.
+    if (corpus) await saveBrandSource(args.brandId, { url, assets: site.assets, readChars: corpus.length });
+  }
   const source = [
     seed,
     corpus,
@@ -218,4 +218,81 @@ export async function setBrandArchived(brandId: string, archived: boolean): Prom
   if (isMissingColumn(error)) return "migration-needed";
   if (error) throw error;
   return "ok";
+}
+
+/**
+ * Revenir en arrière sans rien effacer : la version choisie est recopiée comme NOUVELLE version,
+ * l'historique reste intact (et on peut donc annuler une restauration).
+ */
+export async function restoreBrandOSVersion(args: { brandId: string; orgId: string; userId: string; version: number }): Promise<"ok" | "not-found"> {
+  const supabase = await createSupabaseServerClient();
+  const [{ data: source }, latest] = await Promise.all([
+    supabase.from("brand_os_versions").select("summary,canon").eq("brand_id", args.brandId).eq("version", args.version).maybeSingle(),
+    latestOS(supabase, args.brandId),
+  ]);
+  if (!source || !latest) return "not-found";
+  await insertOS(supabase, {
+    ...args,
+    version: latest.version + 1,
+    summary: source.summary ?? "",
+    canon: { ...(source.canon as Record<string, unknown>), generated_by: "restore", change: `Retour à la v${args.version}` },
+  });
+  return "ok";
+}
+
+export async function restoreMegaVersion(args: { brandId: string; orgId: string; userId: string; version: number }): Promise<"ok" | "not-found"> {
+  const supabase = await createSupabaseServerClient();
+  const [{ data: source }, latest] = await Promise.all([
+    supabase.from("mega_prompts").select("content").eq("brand_id", args.brandId).eq("version", args.version).maybeSingle(),
+    latestMega(supabase, args.brandId),
+  ]);
+  if (!source || !latest) return "not-found";
+  const wanted = normalizeMega(source.content);
+  await insertMega(supabase, {
+    ...args,
+    previous: normalizeMega(latest.content),
+    previousVersion: latest.version,
+    next: { intro: wanted.intro, rules: wanted.rules },
+    note: `Retour aux règles de la v${args.version}`,
+  });
+  return "ok";
+}
+
+/* ------------------------------------------------------------------ */
+/* Lien public de la planche                                            */
+/* ------------------------------------------------------------------ */
+
+export type BrandShare = { token: string; createdAt: string };
+
+/** `undefined`: the feature's table does not exist yet (migration 0006 pending). */
+export async function getBrandShare(brandId: string): Promise<BrandShare | null | undefined> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("brand_shares")
+    .select("token,created_at")
+    .eq("brand_id", brandId)
+    .is("revoked_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (isMissingTable(error)) return undefined;
+  if (error) throw error;
+  return data ? { token: data.token as string, createdAt: data.created_at as string } : null;
+}
+
+export async function createBrandShare(args: { brandId: string; orgId: string; userId: string }): Promise<"ok" | "migration-needed"> {
+  const supabase = await createSupabaseServerClient();
+  // 32 random bytes: the link is the only secret, it must not be guessable.
+  const token = randomBytes(32).toString("base64url");
+  const { error } = await supabase.from("brand_shares").insert({ org_id: args.orgId, brand_id: args.brandId, token, created_by: args.userId });
+  if (isMissingTable(error) || isForbidden(error)) return "migration-needed";
+  if (error) throw error;
+  return "ok";
+}
+
+/** Revoking keeps the row (audit) and kills the link at once. */
+export async function revokeBrandShares(brandId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("brand_shares").update({ revoked_at: new Date().toISOString() }).eq("brand_id", brandId).is("revoked_at", null);
+  if (error && !isMissingTable(error)) throw error;
 }

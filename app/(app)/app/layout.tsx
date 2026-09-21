@@ -13,9 +13,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     // The client brand colour is scoped here: everything inside retints, the scene does not.
-    <div className="min-h-screen p-4 md:p-8" style={brandStyle(brandColor) as CSSProperties}>
+    <div className="min-h-screen p-4 md:p-8 print:p-0" style={brandStyle(brandColor) as CSSProperties}>
       <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-6 rounded-shell bg-shell p-4 md:p-6">
-        <header className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-card p-2 pl-4 lg:flex-nowrap lg:gap-4 lg:rounded-pill">
+        <header className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-card p-2 pl-4 lg:flex-nowrap lg:gap-4 lg:rounded-pill print:hidden">
           <div className="flex min-w-0 items-center gap-3">
             <Link href="/app/clients" aria-label="Mes clients" className="flex-none">
               <Logo />

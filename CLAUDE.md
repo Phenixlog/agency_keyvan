@@ -18,6 +18,7 @@ Next.js **16.3.5** (App Router, `proxy.ts`, pas de `middleware.ts`) · React 19 
 - Après un test, lire les logs du serveur de dev : ces bugs ne cassent ni le build ni le typage.
 
 ## Architecture
+- **Marque = la planche de marque**, cœur du produit (« ce qui prouve qu'on a compris le client »). `components/brand/BrandBoard.tsx` sert l'écran Marque (`editable`) et la page publique `/p/[token]` ; données par `lib/brand-board.ts#loadBoard` (client utilisateur ou client de service). La structure du Brand OS est **l'unique source de vérité** : plus de résumé libre éditable ; on modifie en parlant à l'expert. Palette stockée en texte « nom #RRGGBB » (`parsePalette`), piliers « Titre : ligne » (`parsePillar`), `voice.says / never`. `lib/site-assets.ts` lit logo / image de partage dans le `<head>` du site (adresses validées publiques). Restaurer = recopier en nouvelle version, jamais écraser.
 - `lib/clients.ts` — `listClientCards()` : tous les clients actifs et leurs signaux en 4 requêtes groupées ; sert « Mes clients » et le bloc « Ce qui vous attend » de l'accueil.
 - `lib/workspace.ts` — `getWorkspace()` (cache par requête) : user, marques, marque active (cookie `active_brand`), dernier Brand OS, dernier mega, couleur de marque. Point d'entrée de tout écran de `/app`.
 - `lib/brand-os/model.ts` — modèle pur et testé : types, schémas JSON, replis déterministes, formats d'image. `index.ts` — orchestration LLM ; **chaque étape LLM a un repli**, rien ne bloque sans clé.
@@ -44,11 +45,11 @@ Next.js **16.3.5** (App Router, `proxy.ts`, pas de `middleware.ts`) · React 19 
 - Ne jamais logger d'e-mail ni de mot de passe ; messages de login identiques pour « mauvais mot de passe » et « e-mail non confirmé » (anti-énumération).
 
 ## Current Focus (2026-09-21)
-Revue page par page avec Keyvan (« on prend du recul sur chaque page : UX, fonctionnement, ce qui manque ») : pour chaque écran, **analyser et proposer d'abord, coder seulement après son accord**. Fait : **Accueil** (deux niveaux validés : `/app/clients` + accueil du client recentré sur l'action ; ajouter / renommer / archiver un client). Prochaine page : **Marque**, puis Créer, Studio, Calendrier, Expert, onboarding.
+Revue page par page avec Keyvan (« on prend du recul sur chaque page : UX, fonctionnement, ce qui manque ») : pour chaque écran, **analyser et proposer d'abord, coder seulement après son accord**. Fait : **Marque** (planche visuelle, logo du site, voix en exemples, palette codée, export PDF, lien public, restauration de versions), **Accueil** (deux niveaux validés : `/app/clients` + accueil du client recentré sur l'action ; ajouter / renommer / archiver un client). Prochaine page : **Créer**, puis Studio, Calendrier, Expert, onboarding.
 
 Vérifié en réel : auth, onboarding → création → studio, moteur LLM (clé OpenRouter en place), Expert de bout en bout (lit les images, propose, « Appliquer » crée une version, la création suivante en tient compte), Calendrier (planifier / retirer).
 
 Reste :
-1. **Migration `0005_expert_and_clients.sql`** à exécuter par Keyvan (contrôle : 5 lignes). Sans elle : conversation Expert non mémorisée, archivage d'un client impossible (bandeau).
-2. Jamais testés en réel : légende du calendrier par LLM, « Recréer » du Studio, une proposition de l'expert qui modifie le Brand OS lui-même (seules des règles ont été appliquées), archiver / restaurer un client.
+1. Migrations à exécuter par Keyvan, dans l'ordre : **`0005_expert_and_clients.sql`** (contrôle : 5 lignes) puis **`0006_brand_shares.sql`** (contrôle : 3 lignes). Sans elles : conversation Expert non mémorisée, archivage d'un client et lien public indisponibles (bandeaux).
+2. Jamais testés en réel : la page publique `/p/[token]` avec un vrai jeton (dépend de 0006), le logo sur une marque créée depuis une URL (la marque de test vient d'une description), la restauration de version, légende du calendrier par LLM, « Recréer » du Studio, une proposition de l'expert qui modifie le Brand OS lui-même (seules des règles ont été appliquées), archiver / restaurer un client.
 3. À surveiller : bucket Storage `outs` public ; marque « [TEST] Atelier Lune » ; coût Expert ≈ 2-3 centimes par message, sans plafond.
