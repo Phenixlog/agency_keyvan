@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brand OS — 3 directions DA</title>
+<!-- Seule dépendance : les polices, car une DA jugée sans sa typo serait un mensonge. Replis système prévus. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=Geist:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ---------- Échelle commune (grille 8 px) ---------- */
+  :root {
+    --s1: 4px; --s2: 8px; --s3: 16px; --s4: 24px; --s5: 32px; --s6: 48px;
+    --brand: #C4572E; --brand-2: #2F4F4F; --on-brand: #ffffff;
+    --tool-bg: #111214; --tool-ink: #f4f4f5; --tool-mute: #9a9ba1; --tool-line: #2a2b30;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: "Geist", system-ui, sans-serif; background: var(--tool-bg); color: var(--tool-ink); }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* ---------- Barre d'outils de la maquette (hors DA) ---------- */
+  .tool { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: var(--s4); align-items: center;
+    padding: var(--s3) var(--s4); background: var(--tool-bg); border-bottom: 1px solid var(--tool-line); font-size: 13px; }
+  .tool b { font-weight: 600; }
+  .tool .grp { display: flex; align-items: center; gap: var(--s2); }
+  .tool .lbl { color: var(--tool-mute); margin-right: var(--s1); }
+  .seg { display: flex; background: #1c1d21; border-radius: 999px; padding: var(--s1); }
+  .seg button { padding: var(--s2) var(--s3); border-radius: 999px; color: var(--tool-mute); }
+  .seg button[aria-pressed="true"] { background: var(--tool-ink); color: var(--tool-bg); font-weight: 600; }
+  .sw { width: 24px; height: 24px; border-radius: 50%; outline: 2px solid transparent; outline-offset: 2px; }
+  .sw[aria-pressed="true"] { outline-color: var(--tool-ink); }
+  input[type=color] { width: 32px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; }
+
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+  .legend { position: sticky; top: 64px; padding: var(--s4); font-size: 13px; line-height: 1.55; color: #c9cad0; max-height: calc(100vh - 64px); overflow: auto; }
+  .legend h2 { font-size: 15px; color: var(--tool-ink); margin-bottom: var(--s1); }
+  .legend h3 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--tool-mute); margin: var(--s4) 0 var(--s2); }
+  .legend ul { padding-left: var(--s3); display: grid; gap: var(--s2); }
+  .legend .chips { display: flex; flex-wrap: wrap; gap: var(--s2); }
+  .legend .chip { display: inline-flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s2); border: 1px solid var(--tool-line); border-radius: 8px; font-family: "JetBrains Mono", monospace; font-size: 11px; }
+  .legend .dot { width: 12px; height: 12px; border-radius: 4px; border: 1px solid #ffffff22; }
+  .legend [data-for] { display: none; } .legend [data-for].on { display: block; }
+  @media (max-width: 1100px) { .wrap { grid-template-columns: 1fr; } .legend { position: static; max-height: none; } }
+
+  /* =====================================================================
+     DIRECTIONS — seuls les tokens changent ; le contenu est identique.
+     ===================================================================== */
+  .stage { padding: var(--s5); min-height: calc(100vh - 64px); background: var(--backdrop); transition: background .4s; }
+  .app { --tint: color-mix(in srgb, var(--brand) 12%, var(--card)); --tint-2: color-mix(in srgb, var(--brand) 22%, var(--card));
+    max-width: 1240px; margin: 0 auto; background: var(--shell); color: var(--ink); border-radius: var(--r-shell);
+    padding: var(--pad-shell); font-family: var(--f-text); display: grid; gap: var(--s4); grid-template-columns: var(--cols); transition: background .4s, border-radius .4s; }
+
+  /* A — Cimaise : galerie calme, éditoriale */
+  [data-dir="a"] { --backdrop: #E4E0D6; --shell: #F6F4EE; --card: #FFFFFF; --soft: #EDEAE2; --ink: #1A1815; --mute: #6F6A60; --line: #E2DED4;
+    --r-shell: 32px; --r-card: 24px; --r-ctl: 999px; --pad-shell: 24px; --cols: 1fr;
+    --f-display: "Instrument Serif", Georgia, serif; --f-text: "Instrument Sans", system-ui, sans-serif; --f-meta: "Instrument Sans", system-ui, sans-serif;
+    --h1: 44px; --h1-w: 400; --h1-ls: -0.01em; --meta-ls: 0; }
+  /* B — Établi : instrument d'atelier, annoté */
+  [data-dir="b"] { --backdrop: #DFE1E4; --shell: #F4F5F6; --card: #FFFFFF; --soft: #E9EAEC; --ink: #111214; --mute: #63666D; --line: #DDDFE2;
+    --r-shell: 28px; --r-card: 20px; --r-ctl: 12px; --pad-shell: 24px; --cols: 56px 1fr;
+    --f-display: "Geist", system-ui, sans-serif; --f-text: "Geist", system-ui, sans-serif; --f-meta: "JetBrains Mono", ui-monospace, monospace;
+    --h1: 36px; --h1-w: 600; --h1-ls: -0.03em; --meta-ls: -0.01em; }
+  /* C — Contre-forme : cadre sombre, contenu clair, teintes de la marque */
+  [data-dir="c"] { --backdrop: color-mix(in srgb, var(--brand) 10%, #EEF0F2); --shell: #141414; --card: #FFFFFF; --soft: #F1EEE7; --ink: #151515; --mute: #6B6B6B; --line: #E6E2D9;
+    --r-shell: 36px; --r-card: 28px; --r-ctl: 999px; --pad-shell: 16px; --cols: 64px 1fr;
+    --f-display: "Bricolage Grotesque", system-ui, sans-serif; --f-text: "Figtree", system-ui, sans-serif; --f-meta: "Figtree", system-ui, sans-serif;
+    --h1: 40px; --h1-w: 700; --h1-ls: -0.035em; --meta-ls: 0; }
+
+  /* ---------- Navigation : pilules (A) ou rail (B, C) ---------- */
+  .topnav, .rail { display: none; }
+  [data-dir="a"] .topnav { display: flex; }
+  [data-dir="b"] .rail, [data-dir="c"] .rail { display: flex; }
+  .topnav { align-items: center; justify-content: space-between; gap: var(--s3); background: var(--card); border-radius: 999px; padding: var(--s2); }
+  .logo { display: flex; align-items: center; gap: var(--s2); font-weight: 600; padding-left: var(--s2); }
+  .mark { width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--shell); display: grid; place-items: center; }
+  .pills { display: flex; gap: var(--s1); background: var(--soft); border-radius: 999px; padding: var(--s1); }
+  .pills button { padding: var(--s2) var(--s3); border-radius: 999px; font-size: 14px; color: var(--mute); transition: .2s; }
+  .pills button:hover { color: var(--ink); }
+  .pills button[aria-current="page"] { background: var(--ink); color: var(--card); }
+  .round { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); color: var(--ink); transition: .2s; }
+  .round:hover { background: var(--ink); color: var(--card); }
+  .rail { flex-direction: column; align-items: center; gap: var(--s2); padding: var(--s2) 0; }
+  .rail .mark { margin-bottom: var(--s3); }
+  .rail button { width: 40px; height: 40px; border-radius: var(--r-ctl); display: grid; place-items: center; color: var(--mute); transition: .2s; }
+  .rail button:hover { background: var(--soft); color: var(--ink); }
+  .rail button[aria-current="page"] { background: var(--ink); color: var(--card); }
+  .rail .grow { flex: 1; }
+  [data-dir="c"] .rail .mark { background: var(--brand); color: var(--on-brand); }
+  [data-dir="c"] .rail button { color: #8b8b8b; }
+  [data-dir="c"] .rail button:hover { background: #262626; color: #fff; }
+  [data-dir="c"] .rail button[aria-current="page"] { background: #fff; color: #141414; }
+  [data-dir="c"] .main { background: #FAF8F3; border-radius: calc(var(--r-shell) - var(--pad-shell)); padding: var(--s4); }
+
+  /* ---------- Contenu ---------- */
+  .main { display: grid; gap: var(--s4); min-width: 0; }
+  .head { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: end; justify-content: space-between; }
+  .eyebrow { font-family: var(--f-meta); font-size: 12px; letter-spacing: var(--meta-ls); color: var(--mute); margin-bottom: var(--s2); }
+  h1 { font-family: var(--f-display); font-size: var(--h1); font-weight: var(--h1-w); letter-spacing: var(--h1-ls); line-height: 1.05; }
+  /* La couleur cliente n'est jamais une couleur de TEXTE (illisible si elle est claire) : aplat ou surligneur uniquement. */
+  h1 em { font-style: normal; padding: 0 var(--s1); background: linear-gradient(transparent 58%, color-mix(in srgb, var(--brand) 55%, transparent) 0); transition: background .4s; }
+  [data-dir="a"] h1 em { font-style: italic; }
+  .brands { display: flex; gap: var(--s1); background: var(--card); border-radius: var(--r-ctl); padding: var(--s1); }
+  [data-dir="c"] .brands { background: var(--soft); }
+  .brands button { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3); border-radius: var(--r-ctl); font-size: 13px; color: var(--mute); }
+  .brands button i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .brands button[aria-pressed="true"] { background: var(--soft); color: var(--ink); font-weight: 600; }
+  [data-dir="c"] .brands button[aria-pressed="true"] { background: var(--card); }
+
+  .grid { display: grid; gap: var(--s3); grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .card { background: var(--card); border-radius: var(--r-card); padding: var(--s4); min-width: 0; }
+  [data-dir="b"] .card { border: 1px solid var(--line); }
+  .card h2 { font-family: var(--f-text); font-size: 15px; font-weight: 600; }
+  .card .top { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); margin-bottom: var(--s3); }
+  .meta { font-family: var(--f-meta); font-size: 12px; letter-spacing: var(--meta-ls); color: var(--mute); }
+  a { color: inherit; text-decoration: none; }
+  .link { display: inline-flex; align-items: center; gap: var(--s1); font-size: 13px; color: var(--mute); }
+  .link:hover { color: var(--ink); }
+
+  /* Carte héros : l'unique case « accent » prend la couleur de la MARQUE CLIENTE */
+  .hero { grid-column: span 7; background: var(--brand); color: var(--on-brand); position: relative; overflow: hidden; display: grid; gap: var(--s4); align-content: space-between; min-height: 264px; transition: background .4s, color .4s; }
+  [data-dir="b"] .hero { border-color: transparent; }
+  .hero::after { content: ""; position: absolute; right: -40px; bottom: -40px; width: 240px; height: 240px; border-radius: 50%; opacity: .16;
+    background: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 10px); }
+  .hero .meta, .hero .link { color: inherit; opacity: .8; }
+  .hero p { font-family: var(--f-display); font-size: 28px; line-height: 1.2; letter-spacing: var(--h1-ls); max-width: 22ch; position: relative; z-index: 1; font-weight: var(--h1-w); }
+  [data-dir="b"] .hero p { font-size: 24px; font-weight: 500; }
+  .tones { display: flex; flex-wrap: wrap; gap: var(--s2); position: relative; z-index: 1; }
+  .tones span { padding: var(--s1) var(--s3); border-radius: var(--r-ctl); font-size: 13px; background: color-mix(in srgb, currentColor 16%, transparent); }
+
+  .create { grid-column: span 5; display: grid; gap: var(--s3); align-content: start; }
+  [data-dir="c"] .create { background: var(--tint); }
+  .field { background: var(--soft); border-radius: calc(var(--r-card) - 8px); padding: var(--s3); font-size: 14px; color: var(--mute); min-height: 88px; }
+  [data-dir="c"] .field { background: var(--card); }
+  .formats { display: flex; gap: var(--s2); flex-wrap: wrap; }
+  .formats button { padding: var(--s2) var(--s3); border-radius: var(--r-ctl); font-size: 13px; background: var(--soft); color: var(--mute); }
+  [data-dir="c"] .formats button { background: var(--card); }
+  .formats button[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+  .cta { display: flex; align-items: center; justify-content: center; gap: var(--s2); padding: var(--s3); border-radius: var(--r-ctl); background: var(--ink); color: var(--card); font-weight: 600; font-size: 14px; transition: transform .15s; }
+  .cta:hover { transform: translateY(-1px); }
+
+  .works { grid-column: span 12; }
+  .tiles { display: grid; gap: var(--s3); grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tile { display: grid; gap: var(--s2); }
+  .art { aspect-ratio: 1; border-radius: calc(var(--r-card) - 8px); overflow: hidden; background: var(--tint); position: relative; transition: transform .25s; }
+  .tile:hover .art { transform: translateY(-4px); }
+  .art svg { width: 100%; height: 100%; display: block; }
+  .art.a4 { aspect-ratio: 1 / 1.414; }
+  .state { position: absolute; left: var(--s2); top: var(--s2); display: inline-flex; align-items: center; gap: var(--s1); padding: var(--s1) var(--s2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink); font-family: var(--f-meta); font-size: 11px; }
+  .state svg.i { width: 12px; height: 12px; }
+  [data-dir="b"] .state { border-radius: 6px; }
+  .cap { display: flex; justify-content: space-between; gap: var(--s2); font-size: 13px; }
+
+  .plan { grid-column: span 6; } .rules { grid-column: span 6; }
+  [data-dir="c"] .plan { background: var(--soft); }
+  .rows { display: grid; }
+  .row { display: grid; grid-template-columns: 56px 1fr auto; gap: var(--s3); align-items: center; padding: var(--s3) 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .row:first-child { border-top: 0; padding-top: 0; }
+  .date { text-align: center; background: var(--tint); border-radius: 12px; padding: var(--s2) 0; font-family: var(--f-meta); font-size: 11px; color: var(--mute); transition: background .4s; }
+  .date b { display: block; font-family: var(--f-display); font-size: 20px; color: var(--ink); font-weight: var(--h1-w); line-height: 1.1; }
+  .tag { padding: var(--s1) var(--s2); border-radius: var(--r-ctl); background: var(--soft); font-family: var(--f-meta); font-size: 11px; color: var(--mute); white-space: nowrap; }
+  .rule { display: grid; grid-template-columns: auto 1fr; gap: var(--s3); padding: var(--s3) 0; border-top: 1px solid var(--line); font-size: 14px; align-items: baseline; }
+  .rule:first-child { border-top: 0; padding-top: 0; }
+  .rule .v { font-family: var(--f-meta); font-size: 11px; color: var(--ink); background: var(--tint); padding: var(--s1) var(--s2); border-radius: 6px; transition: .4s; }
+
+  @media (max-width: 900px) { .hero, .create, .plan, .rules { grid-column: span 12; } .tiles { grid-template-columns: repeat(2, 1fr); } .pills { display: none; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+    <symbol id="i-brand" viewBox="0 0 24 24"><path d="M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z"/><path d="M16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7"/><path d="m11 8 2.3-2.3a2.4 2.4 0 0 1 3.4 0l.9.9a2.4 2.4 0 0 1 0 3.4L9.7 17.9"/><path d="M7 17h.01"/></symbol>
+    <symbol id="i-create" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-studio" viewBox="0 0 24 24"><path d="M18 22H4a2 2 0 0 1-2-2V6"/><path d="m22 13-1.3-1.3a2.4 2.4 0 0 0-3.4 0L11 18"/><circle cx="12" cy="8" r="2"/><rect x="6" y="2" width="16" height="16" rx="2"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></symbol>
+    <symbol id="i-expert" viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3Z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M3.3 15.3A1 1 0 0 0 4 17h16a1 1 0 0 0 .7-1.7C19.4 14 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.4 6-2.7 7.3"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9A2 2 0 0 1 15 10.8V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1Z"/></symbol>
+    <symbol id="i-draft" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+  </defs>
+</svg>
+
+<div class="tool">
+  <b>Brand OS · 3 directions DA</b>
+  <div class="grp"><span class="lbl">Direction</span>
+    <div class="seg" id="dirs">
+      <button data-dir="a" aria-pressed="true">A · Cimaise</button>
+      <button data-dir="b" aria-pressed="false">B · Établi</button>
+      <button data-dir="c" aria-pressed="false">C · Contre-forme</button>
+    </div>
+  </div>
+  <div class="grp"><span class="lbl">Marque cliente active</span>
+    <button class="sw" style="background:#C4572E" data-b="0" aria-pressed="true" title="Atelier Lune"></button>
+    <button class="sw" style="background:#1F7A4D" data-b="1" aria-pressed="false" title="Vélo Nantes"></button>
+    <button class="sw" style="background:#2B3A8C" data-b="2" aria-pressed="false" title="Maison Kodo"></button>
+    <button class="sw" style="background:#E8D44D" data-b="3" aria-pressed="false" title="Studio Citron (couleur claire)"></button>
+    <input type="color" id="pick" value="#C4572E" title="Couleur libre">
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="stage" id="stage" data-dir="a">
+    <div class="app">
+
+      <nav class="topnav" aria-label="Navigation">
+        <div class="logo"><span class="mark"><svg class="i"><use href="#i-pin"/></svg></span>Brand OS</div>
+        <div class="pills">
+          <button aria-current="page">Accueil</button><button>Marque</button><button>Créer</button><button>Studio</button><button>Calendrier</button><button>Expert</button>
+        </div>
+        <div style="display:flex;gap:8px"><button class="round" aria-label="Rechercher"><svg class="i"><use href="#i-search"/></svg></button><button class="round" aria-label="Notifications"><svg class="i"><use href="#i-bell"/></svg></button></div>
+      </nav>
+
+      <nav class="rail" aria-label="Navigation">
+        <span class="mark"><svg class="i"><use href="#i-pin"/></svg></span>
+        <button aria-current="page" aria-label="Accueil"><svg class="i"><use href="#i-home"/></svg></button>
+        <button aria-label="Marque"><svg class="i"><use href="#i-brand"/></svg></button>
+        <button aria-label="Créer"><svg class="i"><use href="#i-create"/></svg></button>
+        <button aria-label="Studio"><svg class="i"><use href="#i-studio"/></svg></button>
+        <button aria-label="Calendrier"><svg class="i"><use href="#i-cal"/></svg></button>
+        <button aria-label="Expert"><svg class="i"><use href="#i-expert"/></svg></button>
+        <span class="grow"></span>
+        <button aria-label="Déconnexion"><svg class="i"><use href="#i-out"/></svg></button>
+      </nav>
+
+      <main class="main">
+        <header class="head">
+          <div>
+            <p class="eyebrow">Lundi 21 septembre · 3 marques dans l'atelier</p>
+            <h1>Au mur aujourd'hui,<br><em id="bname">Atelier Lune</em></h1>
+          </div>
+          <div class="brands" id="brands"></div>
+        </header>
+
+        <div class="grid">
+          <section class="card hero">
+            <div class="top" style="margin:0"><span class="meta" id="osv">Brand OS · v3 · analysé le 14 sept.</span><a class="link" href="#">Ouvrir <svg class="i"><use href="#i-arrow"/></svg></a></div>
+            <p id="promise">Des objets qui durent et qui se patinent.</p>
+            <div class="tones" id="tones"></div>
+          </section>
+
+          <section class="card create">
+            <div class="top" style="margin:0"><h2>Nouvelle création</h2><span class="meta">brief → image</span></div>
+            <div class="field" id="brief">Un bol fumant sur une table en bois, lumière du matin…</div>
+            <div class="formats" id="formats">
+              <button aria-pressed="true">Social 1:1</button><button aria-pressed="false">Affiche · ratio A4</button><button aria-pressed="false">Affiche · ratio A3</button>
+            </div>
+            <button class="cta">Générer <svg class="i"><use href="#i-arrow"/></svg></button>
+          </section>
+
+          <section class="card works">
+            <div class="top"><h2>Dernières créations</h2><a class="link" href="#">Tout le Studio <svg class="i"><use href="#i-arrow"/></svg></a></div>
+            <div class="tiles">
+              <article class="tile"><div class="art"><svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><rect width="100" height="100" fill="var(--tint-2)"/><circle cx="50" cy="58" r="30" fill="var(--brand)"/><ellipse cx="50" cy="46" rx="30" ry="9" fill="var(--brand-2)"/><rect y="84" width="100" height="16" fill="var(--brand-2)" opacity=".25"/></svg><span class="state"><svg class="i"><use href="#i-pin"/></svg>Gardée</span></div><div class="cap"><span>Bol du matin</span><span class="meta">1:1 · v3</span></div></article>
+              <article class="tile"><div class="art"><svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><rect width="100" height="100" fill="var(--brand-2)"/><rect x="14" y="22" width="32" height="64" rx="16" fill="var(--brand)"/><rect x="54" y="38" width="32" height="48" rx="16" fill="var(--tint-2)"/></svg><span class="state"><svg class="i"><use href="#i-pin"/></svg>Gardée</span></div><div class="cap"><span>Duo de vases</span><span class="meta">1:1 · v3</span></div></article>
+              <article class="tile"><div class="art"><svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><rect width="100" height="100" fill="var(--tint)"/><path d="M0 70 Q25 50 50 66 T100 60 V100 H0Z" fill="var(--brand)"/><circle cx="72" cy="30" r="14" fill="var(--brand-2)"/></svg><span class="state"><svg class="i"><use href="#i-draft"/></svg>Brouillon</span></div><div class="cap"><span>Paysage d'argile</span><span class="meta">1:1 · v2</span></div></article>
+              <article class="tile"><div class="art"><svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><rect width="100" height="100" fill="var(--brand)"/><g fill="none" stroke="var(--on-brand)" stroke-width="1.5" opacity=".7"><circle cx="50" cy="50" r="12"/><circle cx="50" cy="50" r="24"/><circle cx="50" cy="50" r="36"/></g></svg><span class="state"><svg class="i"><use href="#i-draft"/></svg>Brouillon</span></div><div class="cap"><span>Tour du potier</span><span class="meta">A4 · v3</span></div></article>
+            </div>
+          </section>
+
+          <section class="card plan">
+            <div class="top"><h2>Prochaines publications</h2><a class="link" href="#">Calendrier <svg class="i"><use href="#i-arrow"/></svg></a></div>
+            <div class="rows">
+              <div class="row"><div class="date">SEPT<b>23</b></div><span>Bol du matin</span><span class="tag">Instagram</span></div>
+              <div class="row"><div class="date">SEPT<b>26</b></div><span>Duo de vases</span><span class="tag">LinkedIn</span></div>
+              <div class="row"><div class="date">OCT<b>02</b></div><span>Affiche portes ouvertes</span><span class="tag">Print A4</span></div>
+            </div>
+          </section>
+
+          <section class="card rules">
+            <div class="top"><h2>Ce que l'atelier a appris</h2><span class="meta">3 règles sur 12</span></div>
+            <div id="rules"></div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <aside class="legend">
+    <h2>Ce que tu regardes</h2>
+    <p>Le même écran <b>Accueil</b>, avec le même contenu, dans trois directions. Aucun faux KPI : uniquement des données que l'app possède vraiment.</p>
+    <h3>À tester</h3>
+    <ul>
+      <li><b>Change de marque cliente</b> (pastilles en haut, ou dans l'écran) : le cadre reste neutre, seule la case « accent » se reteinte. C'est le dispositif signature.</li>
+      <li>Essaie la <b>pastille jaune</b> et une couleur libre très claire : le texte sur l'accent bascule seul en noir (contraste AA).</li>
+      <li>Passe de A à B à C <b>sans changer de marque</b> pour comparer à contenu égal.</li>
+    </ul>
+
+    <div data-for="a" class="on">
+      <h3>A · Cimaise</h3>
+      <p>Une galerie calme. Pierre chaude, pilules noires, titres en sérif éditorial. La plus proche de tes références 2 et 3, avec une voix de maison de DA.</p>
+      <h3>Tokens</h3>
+      <div class="chips"><span class="chip"><i class="dot" style="background:#E4E0D6"></i>#E4E0D6 fond</span><span class="chip"><i class="dot" style="background:#F6F4EE"></i>#F6F4EE coque</span><span class="chip"><i class="dot" style="background:#1A1815"></i>#1A1815 encre</span><span class="chip">Instrument Serif + Sans</span><span class="chip">rayon 24</span></div>
+      <h3>Risque</h3><p>Le sérif peut faire « magazine » plus qu'outil sur les écrans denses (Studio, Calendrier).</p>
+    </div>
+    <div data-for="b">
+      <h3>B · Établi</h3>
+      <p>Un instrument d'atelier. Rail d'icônes, gris neutre froid, filets fins, et toutes les métadonnées (versions, formats, règles) en mono, comme des annotations d'épreuve. Proche de ta référence 4.</p>
+      <h3>Tokens</h3>
+      <div class="chips"><span class="chip"><i class="dot" style="background:#DFE1E4"></i>#DFE1E4 fond</span><span class="chip"><i class="dot" style="background:#F4F5F6"></i>#F4F5F6 coque</span><span class="chip"><i class="dot" style="background:#111214"></i>#111214 encre</span><span class="chip">Geist + JetBrains Mono</span><span class="chip">rayon 20</span></div>
+      <h3>Risque</h3><p>La plus « logiciel » des trois : moins de chaleur, à compenser par les images.</p>
+    </div>
+    <div data-for="c">
+      <h3>C · Contre-forme</h3>
+      <p>Cadre noir, contenu crème, cartes teintées par la marque cliente (pas seulement la carte héros). La plus affirmée, proche de ta référence 5.</p>
+      <h3>Tokens</h3>
+      <div class="chips"><span class="chip"><i class="dot" style="background:#141414"></i>#141414 cadre</span><span class="chip"><i class="dot" style="background:#FAF8F3"></i>#FAF8F3 contenu</span><span class="chip">Bricolage Grotesque + Figtree</span><span class="chip">rayon 28</span></div>
+      <h3>Risque</h3><p>Le cadre sombre flirte avec ta contrainte « mode clair uniquement », et la marque cliente teinte beaucoup de surface : avec une couleur criarde, l'écran devient bruyant.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+  const BRANDS = [
+    { name: "Atelier Lune", c: "#C4572E", c2: "#2F4F4F", os: "Brand OS · v3 · analysé le 14 sept.", promise: "Des objets qui durent et qui se patinent.", tones: ["chaleureux", "précis", "tactile"],
+      brief: "Un bol fumant sur une table en bois, lumière du matin…", rules: [["v3", "Toujours une main ou une trace d'usage dans le cadre"], ["v2", "Jamais de fond blanc studio"], ["v2", "Lumière naturelle, latérale"]] },
+    { name: "Vélo Nantes", c: "#1F7A4D", c2: "#F2B705", os: "Brand OS · v5 · analysé le 2 sept.", promise: "La ville à hauteur d'enfant, sans voiture.", tones: ["direct", "joyeux", "militant doux"],
+      brief: "Un vélo cargo sous la pluie, deux enfants qui rient à l'avant…", rules: [["v5", "Montrer la pluie : on roule par tous les temps"], ["v4", "Pas de lycra, des vêtements de tous les jours"], ["v3", "La ville reconnaissable en arrière-plan"]] },
+    { name: "Maison Kodo", c: "#2B3A8C", c2: "#D9A441", os: "Brand OS · v2 · analysé le 18 sept.", promise: "Le thé comme une pause qu'on s'accorde.", tones: ["calme", "érudit", "minimal"],
+      brief: "Une théière en fonte, vapeur fine, fond indigo profond…", rules: [["v2", "Beaucoup de vide autour du sujet"], ["v2", "Un seul objet par image"], ["v1", "Aucun personnage"]] },
+    { name: "Studio Citron", c: "#E8D44D", c2: "#1B1B1B", os: "Brand OS · v1 · analysé aujourd'hui", promise: "Du motion design qui réveille les marques sages.", tones: ["vif", "insolent", "net"],
+      brief: "Formes géométriques qui rebondissent, jaune citron sur noir…", rules: [["v1", "Contraste maximal, jamais de dégradé"], ["v1", "Formes pleines, pas de contours"], ["v1", "Toujours une diagonale"]] },
+  ];
+  const $ = (s) => document.querySelector(s), $$ = (s) => [...document.querySelectorAll(s)];
+  const stage = $("#stage");
+
+  // Texte noir ou blanc sur l'accent selon la luminance relative (WCAG).
+  function onColor(hex) {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#151515" : "#ffffff";
+  }
+  function paint(c, c2) {
+    stage.style.setProperty("--brand", c); stage.style.setProperty("--brand-2", c2); stage.style.setProperty("--on-brand", onColor(c));
+    $("#pick").value = c;
+  }
+  function setBrand(i) {
+    const b = BRANDS[i]; paint(b.c, b.c2);
+    $("#bname").textContent = b.name; $("#osv").textContent = b.os; $("#promise").textContent = b.promise; $("#brief").textContent = b.brief;
+    $("#tones").innerHTML = b.tones.map((t) => `<span>${t}</span>`).join("");
+    $("#rules").innerHTML = b.rules.map(([v, r]) => `<div class="rule"><span class="v">${v}</span><span>${r}</span></div>`).join("");
+    $$(".sw").forEach((s) => s.setAttribute("aria-pressed", s.dataset.b == i));
+    $$("#brands button").forEach((s, k) => s.setAttribute("aria-pressed", k == i));
+  }
+  $("#brands").innerHTML = BRANDS.slice(0, 3).map((b, i) => `<button data-b="${i}" style="--c:${b.c}"><i></i>${b.name}</button>`).join("");
+  $$("[data-b]").forEach((el) => el.addEventListener("click", () => setBrand(+el.dataset.b)));
+  $("#pick").addEventListener("input", (e) => { paint(e.target.value, stage.style.getPropertyValue("--brand-2")); $$(".sw").forEach((s) => s.setAttribute("aria-pressed", false)); });
+  $$("#dirs button").forEach((btn) => btn.addEventListener("click", () => {
+    stage.dataset.dir = btn.dataset.dir;
+    $$("#dirs button").forEach((x) => x.setAttribute("aria-pressed", x === btn));
+    $$(".legend [data-for]").forEach((x) => x.classList.toggle("on", x.dataset.for === btn.dataset.dir));
+  }));
+  $$("#formats button").forEach((btn) => btn.addEventListener("click", () => $$("#formats button").forEach((x) => x.setAttribute("aria-pressed", x === btn))));
+  $$(".pills button, .rail button").forEach((btn) => btn.addEventListener("click", () => {
+    const group = btn.closest("nav"); group.querySelectorAll("button").forEach((x) => x.removeAttribute("aria-current")); btn.setAttribute("aria-current", "page");
+  }));
+  setBrand(0);
+</script>
+</body>
+</html>
