@@ -23,6 +23,8 @@ Next.js **16.3.5** (App Router, `proxy.ts`, pas de `middleware.ts`) · React 19 
 - `lib/llm/openrouter.ts` — sortie JSON stricte. Modèles : `OPENROUTER_MODEL_ANALYSIS` (déf. `anthropic/claude-sonnet-5`), `OPENROUTER_MODEL_FAST` (déf. `google/gemini-3.8-flash`).
 - `lib/jobs/engine.ts` — `queueImageGeneration({format})`, **synchrone dans l'action serveur** (10-25 s) → toujours un `SubmitButton` avec état d'attente. Le modèle d'image reçoit un prompt composé par LLM (description d'image), jamais de la stratégie.
 - `lib/learning.ts` — un retour utilisateur est fusionné dans `mega_prompts.content.rules` (12 max). Éditer le Brand OS ne touche **jamais** au mega-prompt.
+- `lib/expert/` + `app/api/expert/route.ts` — expert conversationnel par marque : prompt système construit côté serveur (Brand OS, règles, créations gardées, planning), historique envoyé par le navigateur mais **assaini** (`sanitizeHistory`), marque déduite du cookie et jamais du corps de la requête, réponse diffusée en texte brut, échange enregistré en fin de flux avec un client Supabase créé dans la requête.
+- `lib/llm/openrouter.ts` : **marge de 2000 tokens pour la réflexion** des modèles (Gemini Flash réfléchit obligatoirement dans `max_tokens`), extraction tolérante du JSON, une seconde tentative sur réponse malformée.
 - `lib/safe-fetch.ts` — tout fetch serveur d'une URL utilisateur passe par là (anti-SSRF, voir `docs/ADR-002`).
 - `lib/onboarding.ts` — `requireOnboardingBrand()` garde les étapes 2-6.
 
@@ -40,9 +42,11 @@ Next.js **16.3.5** (App Router, `proxy.ts`, pas de `middleware.ts`) · React 19 
 - Ne jamais logger d'e-mail ni de mot de passe ; messages de login identiques pour « mauvais mot de passe » et « e-mail non confirmé » (anti-énumération).
 
 ## Current Focus (2026-09-21)
-Fait : sécurité (SSRF, proxy), auth réparée, moteur Brand OS par LLM, DA + tokens, et tous les écrans refaits sur la DA : landing, login, onboarding (6 étapes), Accueil, Marque, Créer, Studio, Calendrier, Expert. Parcours onboarding → création → studio → marque testé de bout en bout en local avec une vraie image.
+Fait : sécurité (SSRF, proxy), auth réparée, DA « Cimaise » + tokens, tous les écrans (landing, login, onboarding, Accueil, Marque, Créer, Studio, Calendrier, Expert). `OPENROUTER_API_KEY` est configurée (local + Railway) et **vérifiée en réel** : analyse de marque (Brand OS v3 de la marque de test), prompt d'image composé par LLM, fusion des règles (3/3), chat Expert en streaming (premier mot ≈ 4 s).
+
+Expert = **chat conversationnel par marque** (demande explicite de Keyvan ; une première version en « guides/playbooks » figés a été jetée : il ne comprenait pas la page).
 
 Reste :
-1. **Migration `0004_calendar_playbooks.sql`** : les tables existent en prod mais les écritures étaient refusées par la RLS (42501) ; le fichier a été corrigé (politiques via sa propre fonction `is_active_org_member()` : en prod `is_org_member` a une autre signature, `create or replace` dessus échoue en 42P13, et il ne faut jamais la DROP), Keyvan doit le **rejouer en entier** dans Supabase → SQL Editor (le dernier `select` doit renvoyer 8 lignes). Puis tester : planifier une publication, marquer publiée, retirer.
-2. **`OPENROUTER_API_KEY`** non configurée (Railway + `.env.local`) : tout tourne en mode repli. Jamais exécutés avec une vraie clé : analyse de marque, prompt d'image par LLM, fusion des règles, playbooks Expert, légendes du calendrier. À tester dès que la clé est là, en commençant par « Relancer l'analyse » sur la marque de test.
-3. À surveiller : bucket Storage `outs` public (URLs non devinables mais lisibles par tous) ; marque « [TEST] Atelier Lune » à archiver dans le compte de Keyvan (pas d'écran de suppression de marque).
+1. **Migration `0004_calendar_expert.sql`** à rejouer par Keyvan dans Supabase → SQL Editor (le dernier `select` doit renvoyer 7 lignes). Historique : 1re version appliquée → écritures refusées par la RLS (42501) ; 2e version → 42P13 car `create or replace` sur `is_org_member` dont la prod a une autre signature (ne JAMAIS la DROP) ; version actuelle = fonction dédiée `is_active_org_member`. Puis tester : planifier une publication, la marquer publiée, la retirer, rédiger sa légende ; vérifier que la conversation Expert survit à un rechargement.
+2. Jamais testés en réel : légende du calendrier par LLM (dépend de la migration), « Recréer » du Studio.
+3. À surveiller : bucket Storage `outs` public (URLs non devinables mais lisibles par tous) ; marque « [TEST] Atelier Lune » à archiver dans le compte de Keyvan (pas d'écran de suppression de marque) ; coût du chat ≈ 1 centime par message (Sonnet 5), pas de plafond par utilisateur.

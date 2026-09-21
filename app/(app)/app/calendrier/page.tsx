@@ -39,7 +39,7 @@ const STATUS_LABEL: Record<EntryStatus, string> = { planned: "Planifiée", publi
 const NOTICES = {
   planifie: ["success", "Publication planifiée."],
   invalide: ["danger", "Date, canal ou création invalide : rien n’a été planifié."],
-  refuse: ["danger", "La base a refusé l’écriture : les règles d’accès de cette table sont absentes ou incomplètes. Rejouez en entier supabase/migrations/0004_calendar_playbooks.sql dans Supabase → SQL Editor."],
+  refuse: ["danger", "La base a refusé l’écriture : les règles d’accès de cette table sont absentes ou incomplètes. Rejouez en entier supabase/migrations/0004_calendar_expert.sql dans Supabase → SQL Editor."],
   legende: ["success", "Légende rédigée dans la voix de la marque. Relisez-la avant de publier."],
   "legende-echec": ["danger", "La légende n’a pas pu être rédigée. Réessayez dans un instant."],
 } as const;

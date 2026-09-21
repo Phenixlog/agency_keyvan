@@ -24,7 +24,8 @@ Self-serve Brand OS — SaaS Lab (Sprint 1).
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `WAVESPEED_API_KEY` (obligatoire pour la génération d’images)
    - `OPENROUTER_API_KEY` (analyse de marque, prompts d’image, apprentissage). Sans clé, tout retombe sur un repli déterministe : l’app fonctionne, le Brand OS est un brouillon à compléter.
-   - Optionnel: `OPENROUTER_MODEL_ANALYSIS` (défaut `anthropic/claude-sonnet-5`), `OPENROUTER_MODEL_FAST` (défaut `google/gemini-3.8-flash`)
+   - Optionnel: `OPENROUTER_MODEL_ANALYSIS` (défaut `anthropic/claude-sonnet-5`), `OPENROUTER_MODEL_FAST` (défaut `google/gemini-3.8-flash`), `OPENROUTER_MODEL_CHAT` (expert, défaut `anthropic/claude-sonnet-5`)
+   - Pour enregistrer un secret sans l’afficher (saisie masquée → `.env.local` + Railway) : `sh scripts/set-secret.sh OPENROUTER_API_KEY`
    - Optionnel: `NEXT_PUBLIC_SITE_URL` (utilisé pour composer l’URL de rappel)
 
 Routes auth:
@@ -75,7 +76,7 @@ Aucune chrome avant OB‑06.
 - `/app/creer` · Format (social 1:1, affiche ratio A4 / A3), brief, création synchrone avec état d’attente, résultat + Garder
 - `/app/studio` · Créations par vue (en cours, gardées, brouillons, archives) : Garder, Archiver/Restaurer, Recréer ; une remarque devient une règle de marque
 - `/app/calendrier` · Planning éditorial : grille mensuelle, planification d’une création gardée (date, canal, légende), légende rédigée par LLM, statut publiée ; aucune publication automatique
-- `/app/expert` · Trois guides tirés du Brand OS (ligne éditoriale, voix, brief visuel) ; chaque scène du brief visuel s’ouvre dans Créer
+- `/app/expert` · Chat avec l’expert de la marque active (un interlocuteur et une conversation par marque) : il connaît le Brand OS, les règles apprises, les créations gardées et le planning ; réponse en streaming ; chaque ligne « Brief : … » s’ouvre dans Créer
 
 ## Dossiers
 - `app/` · App Router Next.js
@@ -88,7 +89,7 @@ Aucune chrome avant OB‑06.
 - `supabase/migrations/0001_init.sql` · schéma principal (RLS multi‑tenant)
 - `supabase/migrations/0002_storage_outs.sql` · bucket Storage `outs` + politiques
 - `supabase/migrations/0003_fix_org_members_rls.sql` · helpers `is_org_member`/`is_org_admin` (SECURITY DEFINER) et nouvelles policies `org_members` pour éviter la récursion RLS
-- `supabase/migrations/0004_calendar_playbooks.sql` · tables `calendar_entries` et `playbooks`, RLS via sa propre fonction `is_active_org_member()` (ne dépend pas de `is_org_member`, dont la signature varie). Rejouable en entier ; se termine par un contrôle qui doit renvoyer 8 politiques. Tant qu’elle n’est pas appliquée, Calendrier et Expert affichent un bandeau au lieu de planter.
+- `supabase/migrations/0004_calendar_expert.sql` · tables `calendar_entries` et `expert_messages`, RLS via sa propre fonction `is_active_org_member()` (ne dépend pas de `is_org_member`, dont la signature varie selon les environnements). Rejouable en entier ; se termine par un contrôle qui doit renvoyer 7 politiques. Tant qu’elle n’est pas appliquée, le Calendrier affiche un bandeau et l’expert répond sans mémoriser la conversation.
 
 > Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 
