@@ -4,7 +4,7 @@
  * Module pur : il ne connaît ni la base ni le réseau, et ne fait confiance à aucune entrée.
  */
 // Type-only import: erased at runtime, so the node test runner never resolves the alias.
-import type { BrandOS, BrandStrategy, BrandVoice, MegaPrompt } from "@/lib/brand-os/model";
+import type { BrandOS, BrandStrategy, BrandVoice, Cadence, MegaPrompt } from "@/lib/brand-os/model";
 
 export type Proposal = {
   /** Le changement en une ligne, tel qu'il apparaîtra dans l'historique. */
@@ -67,6 +67,22 @@ const list = (value: unknown): string[] | undefined => {
   return items.length ? items : undefined;
 };
 
+/** Canaux du calendrier. Copie volontaire de `CHANNELS` (module pur, sans import local) : un test garantit la parité. */
+export const CADENCE_CHANNELS = ["instagram", "linkedin", "facebook", "tiktok", "x", "newsletter", "print", "autre"] as const;
+const MAX_PER_WEEK = 14;
+
+/** « Instagram, 2 par semaine » en chiffres. Canal inconnu ou nombre absurde : la ligne est ignorée. */
+const cadence = (value: unknown): Cadence[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const byChannel = new Map<string, number>();
+  for (const item of value) {
+    const channel = String((item as { channel?: unknown })?.channel ?? "").trim().toLowerCase();
+    const perWeek = Math.round(Number((item as { perWeek?: unknown })?.perWeek));
+    if ((CADENCE_CHANNELS as readonly string[]).includes(channel) && perWeek >= 1 && perWeek <= MAX_PER_WEEK) byChannel.set(channel, perWeek);
+  }
+  return byChannel.size ? Array.from(byChannel, ([channel, perWeek]) => ({ channel, perWeek })) : undefined;
+};
+
 /** Retire les clés `undefined` ; renvoie `undefined` si l'objet est vide. */
 function compact<T extends Record<string, unknown>>(object: T): T | undefined {
   const entries = Object.entries(object).filter(([, v]) => v !== undefined);
@@ -112,7 +128,7 @@ export function parseProposal(input: unknown): Proposal | null {
       voice: compact({ says: list(voice.says), never: list(voice.never) }),
       pillars: list(os.pillars),
       visual: compact({ palette: list(visual.palette), style: str(visual.style, MAX_TEXT), mood: str(visual.mood, MAX_TEXT), avoid: list(visual.avoid) }),
-      strategy: compact({ objectives: list(strategy.objectives), channels: list(strategy.channels), angles: list(strategy.angles), rhythm: str(strategy.rhythm, MAX_TEXT) }),
+      strategy: compact({ objectives: list(strategy.objectives), channels: list(strategy.channels), angles: list(strategy.angles), rhythm: str(strategy.rhythm, MAX_TEXT), cadence: cadence(strategy.cadence) }),
     }),
     guidance: str(d.guidance, MAX_GUIDANCE),
     rules: compact({ add: list(rules.add), remove: list(rules.remove), replace: replace.length ? replace : undefined }),
@@ -164,6 +180,8 @@ export type Change = { label: string; before: string; after: string };
 
 const show = (value: string | readonly string[] | undefined) => (Array.isArray(value) ? value.join(" · ") : ((value as string | undefined) ?? "")).trim();
 
+const showCadence = (value: readonly Cadence[] | undefined) => (value ?? []).map((c) => `${c.channel} ${c.perWeek}/semaine`);
+
 /** Uniquement ce qui change réellement : une proposition qui redit l'existant ne montre rien. */
 export function describeChanges(os: BrandOS, mega: MegaPrompt, proposal: Proposal): Change[] {
   const nextOS = applyToBrandOS(os, proposal);
@@ -184,6 +202,7 @@ export function describeChanges(os: BrandOS, mega: MegaPrompt, proposal: Proposa
     ["Stratégie · canaux", os.strategy?.channels, nextOS.strategy?.channels],
     ["Stratégie · angles", os.strategy?.angles, nextOS.strategy?.angles],
     ["Stratégie · rythme", os.strategy?.rhythm, nextOS.strategy?.rhythm],
+    ["Stratégie · cadence", showCadence(os.strategy?.cadence), showCadence(nextOS.strategy?.cadence)],
     ["Consignes créatives", mega.intro, nextMega.intro],
   ];
   const changes = pairs

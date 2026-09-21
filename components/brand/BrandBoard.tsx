@@ -4,6 +4,7 @@ import { MessageSquareText, Users, X } from "lucide-react";
 import type { BoardData } from "@/lib/brand-board";
 import { parsePalette, parsePillar } from "@/lib/brand-os/model";
 import { onBrand } from "@/lib/tokens";
+import { CHANNELS, validCadence } from "@/lib/calendar/model";
 
 /**
  * La planche de marque : l'identité du client, faite pour être montrée. Lecture seule — on la fait
@@ -226,6 +227,15 @@ export function BrandBoard({ board, editable = false }: { board: BoardData; edit
                 <div className="grid content-start gap-2 border-t border-line pt-4">
                   <dt className="font-mono text-meta text-mute">Rythme</dt>
                   <dd className="text-body text-ink">{canon.strategy.rhythm}</dd>
+                  {validCadence(canon.strategy.cadence).length ? (
+                    <dd className="flex flex-wrap gap-2">
+                      {validCadence(canon.strategy.cadence).map((c) => (
+                        <span key={c.channel} className="rounded-pill bg-tint px-3 py-1 text-small text-ink">
+                          {CHANNELS[c.channel]} <span className="font-mono text-meta text-mute">· {c.perWeek} / semaine</span>
+                        </span>
+                      ))}
+                    </dd>
+                  ) : null}
                 </div>
               ) : null}
             </dl>

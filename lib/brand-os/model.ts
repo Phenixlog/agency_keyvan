@@ -24,12 +24,20 @@ export type BrandOS = {
 
 export type BrandVoice = { says: string[]; never: string[] };
 
+/** How often the brand publishes on one channel. `channel` is a calendar channel key (instagram, linkedin…). */
+export type Cadence = { channel: string; perWeek: number };
+
 export type BrandStrategy = {
   objectives: string[];
   channels: string[];
   angles: string[];
   rhythm: string;
+  /** The rhythm as numbers, so the calendar can show what is missing. Set with the expert, like the rest. */
+  cadence?: Cadence[];
 };
+
+export const formatCadence = (cadence: readonly Cadence[] | undefined): string =>
+  (cadence ?? []).map((c) => `${c.channel} ${c.perWeek}/semaine`).join(", ");
 
 export type MegaPrompt = {
   /** Standing creative guidance, in French, read by humans and by the LLM. */
@@ -418,6 +426,7 @@ export function renderSummary(os: BrandOS): string {
     line("Canaux", os.strategy?.channels.join(", ") ?? ""),
     line("Angles", os.strategy?.angles.join(" · ") ?? ""),
     line("Rythme", os.strategy?.rhythm ?? ""),
+    line("Cadence", formatCadence(os.strategy?.cadence)),
   ]
     .filter(Boolean)
     .join("\n");

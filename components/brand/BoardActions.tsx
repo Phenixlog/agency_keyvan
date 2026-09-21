@@ -31,3 +31,22 @@ export function CopyLink({ path }: { path: string }) {
     </button>
   );
 }
+
+/** Copies a text as is (a caption on publication day). */
+export function CopyText({ text, label, copiedLabel = "Copié" }: { text: string; label: string; copiedLabel?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className={BUTTON}
+      onClick={async () => {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+    >
+      {copied ? <Check size={16} strokeWidth={1.75} /> : <Copy size={16} strokeWidth={1.75} />}
+      {copied ? copiedLabel : label}
+    </button>
+  );
+}

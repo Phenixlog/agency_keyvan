@@ -96,6 +96,7 @@ Aucune chrome avant OB‑06.
 - `supabase/migrations/0006_brand_shares.sql` · table `brand_shares` (jeton de 32 octets, révocable ; aucune politique pour les visiteurs anonymes). Contrôle final : 3 lignes. Avant son application, « Créer un lien public » affiche un bandeau.
 - `supabase/migrations/0007_brand_assets.sql` · table `brand_assets` (photothèque : ce que montre chaque photo). Les fichiers vont dans le bucket `outs`, sous `brands/<id>/references/`. Contrôle final : 3 lignes. Avant son application, la photothèque affiche un bandeau et le reste du Studio fonctionne.
 - `supabase/migrations/0008_medium_briefs.sql` · table `medium_briefs` (fiche d’expertise d’un support, rédigée une fois par le modèle, une par organisation et par support). Contrôle final : 3 lignes. Avant son application, les fiches sont gardées 30 minutes en mémoire puis réécrites.
+- `supabase/migrations/0009_calendar_planning.sql` · statut `proposed` des publications, colonnes `angle`, `idea`, `client_status`, `client_comment`, `client_reviewed_at`, et table `calendar_shares` (lien public de validation du planning, jeton révocable, rien d’ouvert aux anonymes). Contrôle final : 8 lignes. Avant son application : le calendrier fonctionne, sans propositions ni lien client.
 
 > Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 
