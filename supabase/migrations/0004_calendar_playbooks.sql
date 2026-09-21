@@ -1,6 +1,6 @@
 -- 0004_calendar_playbooks.sql — Calendrier éditorial + playbooks Expert
 -- Idempotent : peut être rejoué sans risque, en entier.
--- L'appartenance à l'organisation passe par public.is_org_member() (SECURITY DEFINER, cf. 0003) :
+-- L'appartenance à l'organisation passe par public.is_active_org_member() (SECURITY DEFINER) :
 -- une sous-requête directe sur org_members dépendrait des politiques RLS de cette table.
 
 -- ---------------------------------------------------------------------------
@@ -55,7 +55,10 @@ for each row execute function public.set_updated_at();
 -- ---------------------------------------------------------------------------
 -- RLS : lecture et écriture réservées aux membres actifs de l'organisation.
 -- ---------------------------------------------------------------------------
-create or replace function public.is_org_member(target_org_id uuid)
+-- Fonction propre à cette migration, au nom volontairement inédit. La production a déjà un
+-- public.is_org_member() dont la signature diffère selon les environnements : « create or replace »
+-- échoue dessus (42P13), et la supprimer casserait les politiques qui en dépendent. On n'y touche pas.
+create or replace function public.is_active_org_member(target_org_id uuid)
 returns boolean
 language sql
 stable
@@ -79,37 +82,37 @@ grant select, insert, update, delete on public.playbooks to authenticated;
 
 drop policy if exists calendar_entries_select_member on public.calendar_entries;
 create policy calendar_entries_select_member on public.calendar_entries for select
-using (public.is_org_member(calendar_entries.org_id));
+using (public.is_active_org_member(calendar_entries.org_id));
 
 drop policy if exists calendar_entries_insert_member on public.calendar_entries;
 create policy calendar_entries_insert_member on public.calendar_entries for insert
-with check (public.is_org_member(calendar_entries.org_id));
+with check (public.is_active_org_member(calendar_entries.org_id));
 
 drop policy if exists calendar_entries_update_member on public.calendar_entries;
 create policy calendar_entries_update_member on public.calendar_entries for update
-using (public.is_org_member(calendar_entries.org_id))
-with check (public.is_org_member(calendar_entries.org_id));
+using (public.is_active_org_member(calendar_entries.org_id))
+with check (public.is_active_org_member(calendar_entries.org_id));
 
 drop policy if exists calendar_entries_delete_member on public.calendar_entries;
 create policy calendar_entries_delete_member on public.calendar_entries for delete
-using (public.is_org_member(calendar_entries.org_id));
+using (public.is_active_org_member(calendar_entries.org_id));
 
 drop policy if exists playbooks_select_member on public.playbooks;
 create policy playbooks_select_member on public.playbooks for select
-using (public.is_org_member(playbooks.org_id));
+using (public.is_active_org_member(playbooks.org_id));
 
 drop policy if exists playbooks_insert_member on public.playbooks;
 create policy playbooks_insert_member on public.playbooks for insert
-with check (public.is_org_member(playbooks.org_id));
+with check (public.is_active_org_member(playbooks.org_id));
 
 drop policy if exists playbooks_update_member on public.playbooks;
 create policy playbooks_update_member on public.playbooks for update
-using (public.is_org_member(playbooks.org_id))
-with check (public.is_org_member(playbooks.org_id));
+using (public.is_active_org_member(playbooks.org_id))
+with check (public.is_active_org_member(playbooks.org_id));
 
 drop policy if exists playbooks_delete_member on public.playbooks;
 create policy playbooks_delete_member on public.playbooks for delete
-using (public.is_org_member(playbooks.org_id));
+using (public.is_active_org_member(playbooks.org_id));
 
 -- Contrôle : doit renvoyer 8 lignes (4 politiques par table).
 select tablename, policyname, cmd from pg_policies

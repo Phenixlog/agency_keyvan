@@ -88,7 +88,7 @@ Aucune chrome avant OB‑06.
 - `supabase/migrations/0001_init.sql` · schéma principal (RLS multi‑tenant)
 - `supabase/migrations/0002_storage_outs.sql` · bucket Storage `outs` + politiques
 - `supabase/migrations/0003_fix_org_members_rls.sql` · helpers `is_org_member`/`is_org_admin` (SECURITY DEFINER) et nouvelles policies `org_members` pour éviter la récursion RLS
-- `supabase/migrations/0004_calendar_playbooks.sql` · tables `calendar_entries` et `playbooks`, RLS via `is_org_member()`. Rejouable en entier ; se termine par un contrôle qui doit renvoyer 8 politiques. Tant qu’elle n’est pas appliquée, Calendrier et Expert affichent un bandeau au lieu de planter.
+- `supabase/migrations/0004_calendar_playbooks.sql` · tables `calendar_entries` et `playbooks`, RLS via sa propre fonction `is_active_org_member()` (ne dépend pas de `is_org_member`, dont la signature varie). Rejouable en entier ; se termine par un contrôle qui doit renvoyer 8 politiques. Tant qu’elle n’est pas appliquée, Calendrier et Expert affichent un bandeau au lieu de planter.
 
 > Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 
