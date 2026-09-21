@@ -4,19 +4,19 @@ import { ArrowRight, ArrowUpRight, CalendarDays, Check, Clock, MessageSquareWarn
 import { OutTile, type OutRow } from "@/components/app/OutTile";
 import { BrandCard, ButtonLink, Card, CardHeader, Empty, Field, Input, Meta, Tag, Textarea, VersionTag } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
-import { IMAGE_FORMATS, type ImageFormat } from "@/lib/brand-os";
+import { IMAGE_FORMATS, OFFERED_FORMATS } from "@/lib/brand-os";
+import { PROPOSALS_PER_BRIEF } from "@/lib/jobs/engine";
 import { CHANNELS, toDay, upcomingEntries } from "@/lib/calendar";
 import { listClientCards } from "@/lib/clients";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
-import { launchGeneration } from "./creer/actions";
+import { createProposals } from "./studio/actions";
 
 export const dynamic = "force-dynamic";
 
 const RECENT_OUTS = 4;
 const UPCOMING = 3;
 const RECENT_CHANGES = 4;
-const FORMATS = Object.entries(IMAGE_FORMATS) as [ImageFormat, (typeof IMAGE_FORMATS)[ImageFormat]][];
 const TODAY = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 const WHEN = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 // Calendar days are dates, not instants: format in UTC so no time zone shifts them.
@@ -132,22 +132,22 @@ export default async function ClientHome() {
 
         <Card className="lg:col-span-6">
           <CardHeader title="Créer un visuel" aside={<Meta>brief → image</Meta>} />
-          <form action={launchGeneration} className="grid gap-4">
+          <form action={createProposals} className="grid gap-4">
             <Field label="Brief" hint="Facultatif. Sans brief, Brand OS illustre la promesse de la marque.">
               <Textarea name="brief" rows={2} maxLength={800} placeholder="Une scène, un objet, une situation…" />
             </Field>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
-                {FORMATS.map(([key, format], index) => (
+                {OFFERED_FORMATS.map((key, index) => (
                   <label key={key} className="cursor-pointer">
                     <input type="radio" name="format" value={key} defaultChecked={index === 0} className="peer sr-only" />
                     <span className="inline-flex rounded-pill bg-soft px-3 py-2 text-small text-mute transition duration-(--duration-fast) ease-cimaise peer-checked:bg-ink peer-checked:text-card peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink">
-                      {format.label}
+                      {IMAGE_FORMATS[key].label}
                     </span>
                   </label>
                 ))}
               </div>
-              <SubmitButton pendingLabel="Création… (≈ 20 s)">Créer</SubmitButton>
+              <SubmitButton pendingLabel="Création… (≈ 30 s)">Créer {PROPOSALS_PER_BRIEF} propositions</SubmitButton>
             </div>
           </form>
         </Card>

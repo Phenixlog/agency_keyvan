@@ -75,8 +75,7 @@ Aucune chrome avant OB‑06.
 - `/p/[token]` · Planche publique en lecture seule (noindex). Seule route qui lit avec la clé de service, strictement par jeton et limitée aux champs de la planche
 - `/app/clients` · **Mes clients** (page d’arrivée dès qu’il y en a plusieurs) : une carte par client à sa couleur, avec sa dernière création et ses signaux (Brand OS en brouillon, propositions de l’expert, brouillons à trier, prochaine publication) ; ajouter, renommer, archiver / restaurer (rien n’est jamais supprimé)
 - `/app` · Accueil du client actif : « ce qui vous attend » (chaque ligne mène là où ça se règle), création rapide, retour à l’expert, dernières créations, prochaines publications, derniers changements de la marque
-- `/app/creer` · Format (social 1:1, affiche ratio A4 / A3), brief, création synchrone avec état d’attente, résultat + Garder
-- `/app/studio` · Créations par vue (en cours, gardées, brouillons, archives) : Garder, Archiver/Restaurer, Recréer ; une remarque devient une règle de marque
+- `/app/studio` · **Créer et trier au même endroit** (l’ancienne page Créer y redirige) : brief + format (carré, portrait 4:5, story 9:16, paysage 16:9, affiche 2:3 en 4K imprimable) → **3 propositions** en parallèle, chacune avec son propre prompt. « Partir d’un vrai produit » : une photo de la **photothèque** du client, dont le sujet est gardé à l’identique dans une nouvelle scène. Par création : Garder, Télécharger, Planifier, Archiver, et deux gestes séparés — **Retoucher cette image** (un changement, la marque n’est pas touchée) ou **En parler à l’expert** (il regarde cette image et propose un changement de la marque). « D’où vient cette image » montre ce qui a été envoyé au modèle.
 - `/app/calendrier` · Planning éditorial : grille mensuelle, planification d’une création gardée (date, canal, légende), légende rédigée par LLM, statut publiée ; aucune publication automatique
 - `/app/expert` · **Poste de pilotage de la marque**, en langage naturel : l’expert (marketing + DA) regarde les dernières créations **en image**, les compare au Brand OS, discute stratégie, puis propose un changement du Brand OS et/ou du mega‑prompt, affiché avant → après. « Appliquer » crée une nouvelle version ; tous les contenus suivants en tiennent compte. Il ne produit pas de contenu (c’est le rôle de Créer).
 
@@ -94,12 +93,13 @@ Aucune chrome avant OB‑06.
 - `supabase/migrations/0004_calendar.sql` · table `calendar_entries`, RLS via `is_active_org_member()`. **Appliquée en production, ne plus la modifier.**
 - `supabase/migrations/0005_expert_and_clients.sql` · table `expert_messages` (conversation + propositions) et colonne `brands.archived_at`. Rejouable ; le contrôle final doit renvoyer 5 lignes. Avant son application : l’expert fonctionne sans mémoriser la conversation, et l’archivage d’un client affiche un bandeau.
 - `supabase/migrations/0006_brand_shares.sql` · table `brand_shares` (jeton de 32 octets, révocable ; aucune politique pour les visiteurs anonymes). Contrôle final : 3 lignes. Avant son application, « Créer un lien public » affiche un bandeau.
+- `supabase/migrations/0007_brand_assets.sql` · table `brand_assets` (photothèque : ce que montre chaque photo). Les fichiers vont dans le bucket `outs`, sous `brands/<id>/references/`. Contrôle final : 3 lignes. Avant son application, la photothèque affiche un bandeau et le reste du Studio fonctionne.
 
 > Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 
 ## Génération (WaveSpeed) & Apprentissage
 - Clé requise: `WAVESPEED_API_KEY` (Railway: variable déjà configurée en staging).
-- Modèle: `wavespeed-ai/z-image/turbo` (API REST v3).
+- Modèles (API REST v3 WaveSpeed) : `openai/gpt-image-2.5-flare/text-to-image` pour les propositions, `openai/gpt-image-2.5-sunburst/edit` dès qu’il y a une photo de référence (remise en scène d’un produit, retouche). Variables : `WAVESPEED_MODEL`, `WAVESPEED_MODEL_EDIT`, `WAVESPEED_QUALITY`. Ces modèles prennent un ratio et une résolution, pas une taille en pixels.
 - Le modèle d’image reçoit une description d’image, pas de la stratégie : `composeImagePrompt()` (LLM rapide) transforme Brand OS + règles apprises + brief + format en prompt anglais. Formats : `social_square`, `print_a4`, `print_a3` (`lib/brand-os/model.ts`) — les formats print sont au ratio A, plafonnés à 1536 px (pas du 300 dpi).
 - Dégradation gracieuse: sans clé API, le job échoue proprement (message FR clair).
 - Les images sont soit stockées via URL (WaveSpeed CDN), soit répliquées dans Supabase Storage (`outs/brands/{brandId}/*.jpg`) si possible.

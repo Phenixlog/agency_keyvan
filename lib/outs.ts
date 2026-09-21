@@ -15,6 +15,13 @@ export type OutPayload = {
   storage_path?: string | null;
   brief?: string | null;
   format?: string | null;
+  prompt?: string | null;
+  mode?: "describe" | "restage" | "retouch" | null;
+  subject?: string | null;
+  instruction?: string | null;
+  reference_url?: string | null;
+  parent_out_id?: string | null;
+  batch_id?: string | null;
 };
 
 /** Prefer our Storage copy (stable) over the generator's CDN URL (may expire). */

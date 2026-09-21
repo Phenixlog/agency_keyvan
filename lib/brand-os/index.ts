@@ -1,6 +1,7 @@
 import { chatJson, isLlmConfigured, MODEL_ANALYSIS, MODEL_FAST } from "@/lib/llm/openrouter";
 import {
   ANALYSIS_SYSTEM,
+  EDIT_PROMPT_SYSTEM,
   BRAND_OS_SCHEMA,
   IMAGE_PROMPT_SCHEMA,
   IMAGE_PROMPT_SYSTEM,
@@ -8,11 +9,13 @@ import {
   RULES_SYSTEM,
   analysisUserMessage,
   fallbackBrandOS,
+  fallbackEditPrompt,
   fallbackImagePrompt,
   fallbackMergeRules,
   imagePromptUserMessage,
   type BrandOS,
   type ImageFormat,
+  type ImageMode,
   type MegaPrompt,
 } from "@/lib/brand-os/model";
 
@@ -63,13 +66,17 @@ export async function composeImagePrompt(args: {
   mega: MegaPrompt;
   brief?: string | null;
   format: ImageFormat;
+  mode?: ImageMode;
+  subject?: string | null;
+  instruction?: string | null;
 }): Promise<string> {
+  const mode = args.mode ?? "describe";
   return withFallback(
-    "prompt d'image",
+    mode === "describe" ? "prompt d'image" : `instruction d'édition (${mode})`,
     async () => {
       const { prompt } = await chatJson<{ prompt: string }>({
         model: MODEL_FAST,
-        system: IMAGE_PROMPT_SYSTEM,
+        system: mode === "describe" ? IMAGE_PROMPT_SYSTEM : EDIT_PROMPT_SYSTEM[mode],
         user: imagePromptUserMessage(args),
         schemaName: "image_prompt",
         schema: IMAGE_PROMPT_SCHEMA,
@@ -80,7 +87,7 @@ export async function composeImagePrompt(args: {
       if (!prompt?.trim()) throw new Error("prompt vide");
       return prompt.trim();
     },
-    () => fallbackImagePrompt(args)
+    () => (mode === "describe" ? fallbackImagePrompt(args) : fallbackEditPrompt({ ...args, mode }))
   );
 }
 

@@ -44,9 +44,9 @@ const NOTICES = {
   "legende-echec": ["danger", "La légende n’a pas pu être rédigée. Réessayez dans un instant."],
 } as const;
 
-export default async function CalendrierPage({ searchParams }: { searchParams: Promise<{ mois?: string; ok?: string }> }) {
+export default async function CalendrierPage({ searchParams }: { searchParams: Promise<{ mois?: string; ok?: string; creation?: string }> }) {
   const { brand } = await getWorkspace();
-  const { mois, ok } = await searchParams;
+  const { mois, ok, creation } = await searchParams;
 
   if (!brand) {
     return (
@@ -193,7 +193,7 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
               </Field>
             </div>
             <Field label="Création" hint={kept.length ? undefined : "Gardez une création dans le Studio pour pouvoir la planifier."}>
-              <select name="outId" defaultValue="" className="w-full rounded-inner bg-soft px-4 py-3 text-body text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+              <select name="outId" defaultValue={kept.some((out) => out.id === creation) ? creation : ""} className="w-full rounded-inner bg-soft px-4 py-3 text-body text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
                 <option value="">Aucune — simple idée de publication</option>
                 {kept.map((out) => (
                   <option key={out.id} value={out.id}>{(out.payload?.brief || "Sans brief").slice(0, 70)}</option>

@@ -22,14 +22,21 @@ export type WaveSpeedResultResponse = {
 
 export type WaveSpeedImageParams = {
   prompt: string;
-  size?: string; // e.g., "1024*1024"
-  output_format?: "jpeg" | "png" | "webp";
-  seed?: number;
-  enable_sync_mode?: boolean;
+  aspectRatio: string;
+  resolution: "1k" | "2k" | "4k";
+  /**
+   * Reference images (the client's real product, or the creation to retouch). Their presence
+   * switches to the editing model, which keeps the subject and follows an instruction.
+   */
+  images?: string[];
 };
 
 const WAVESPEED_BASE_URL = "https://api.wavespeed.ai/api/v3";
-const MODEL_PATH = "wavespeed-ai/z-image/turbo";
+/** Three proposals per brief: the fast, balanced tier (≈ $0.024 per image at 1k). */
+const MODEL_PATH = process.env.WAVESPEED_MODEL || "openai/gpt-image-2.5-flare/text-to-image";
+/** With a reference photo, fidelity to the client's real product matters: the precision tier (≈ $0.039). */
+const MODEL_EDIT_PATH = process.env.WAVESPEED_MODEL_EDIT || "openai/gpt-image-2.5-sunburst/edit";
+const QUALITY = process.env.WAVESPEED_QUALITY || "medium";
 
 export function ensureWaveSpeedKey(): string {
   const key = process.env.WAVESPEED_API_KEY || "";
@@ -43,13 +50,16 @@ export function ensureWaveSpeedKey(): string {
 
 export async function submitImageTask(params: WaveSpeedImageParams): Promise<string> {
   const apiKey = ensureWaveSpeedKey();
-  const url = `${WAVESPEED_BASE_URL}/${MODEL_PATH}`;
+  const editing = Boolean(params.images?.length);
+  const url = `${WAVESPEED_BASE_URL}/${editing ? MODEL_EDIT_PATH : MODEL_PATH}`;
   const body = {
     prompt: params.prompt,
-    size: params.size ?? "1024*1024",
-    output_format: params.output_format ?? "jpeg",
-    seed: params.seed ?? -1,
-    enable_sync_mode: params.enable_sync_mode ?? false,
+    aspect_ratio: params.aspectRatio,
+    resolution: params.resolution,
+    quality: QUALITY,
+    output_format: "jpeg",
+    enable_sync_mode: false,
+    ...(editing ? { images: params.images } : {}),
   };
   const res = await fetch(url, {
     method: "POST",

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return fail(503, "L’expert n’est pas configuré sur ce serveur (OPENROUTER_API_KEY manquante).");
 
-  const payload = (await req.json().catch(() => null)) as { messages?: unknown } | null;
+  const payload = (await req.json().catch(() => null)) as { messages?: unknown; focusOutId?: unknown } | null;
   const history = sanitizeHistory(payload?.messages);
   const question = history.at(-1);
   if (!question || question.role !== "user") return fail(400, "Message vide.");
@@ -43,14 +43,22 @@ export async function POST(req: NextRequest) {
   const [{ data: outs }, upcoming] = await Promise.all([
     supabase
       .from("outs")
-      .select("status,created_at,payload")
+      .select("id,status,created_at,payload")
       .eq("brand_id", brand.id)
       .neq("status", "archived")
       .order("created_at", { ascending: false })
       .limit(CREATIONS_SHOWN),
     upcomingEntries(brand.id, today, UPCOMING),
   ]);
-  const creations = (outs ?? [])
+  // "C'est un problème de marque" on a Studio tile: that creation is what the user is talking about.
+  // Looked up within the active brand, so an id from the browser cannot reach another client's image.
+  const focusId = typeof payload?.focusOutId === "string" && /^[0-9a-f-]{36}$/i.test(payload.focusOutId) ? payload.focusOutId : null;
+  const { data: focusOut } = focusId
+    ? await supabase.from("outs").select("id,status,created_at,payload").eq("id", focusId).eq("brand_id", brand.id).maybeSingle()
+    : { data: null };
+
+  const creations = [...(focusOut ? [focusOut] : []), ...(outs ?? []).filter((out) => out.id !== focusOut?.id)]
+    .slice(0, CREATIONS_SHOWN)
     .map((out) => ({ out, url: outImageUrl(out.payload as OutPayload | null) }))
     .filter((c): c is typeof c & { url: string } => Boolean(c.url));
 
@@ -81,7 +89,7 @@ export async function POST(req: NextRequest) {
     {
       role: "user",
       content: [
-        { type: "text", text: question.content },
+        { type: "text", text: focusOut ? `${question.content}\n\n(Je parle de la création n°1, la première image jointe.)` : question.content },
         ...creations.map(({ url }) => ({ type: "image_url", image_url: { url } })),
       ],
     },

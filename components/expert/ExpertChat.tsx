@@ -158,6 +158,7 @@ export function ExpertChat({
   mega,
   persisted,
   initialDraft,
+  focus: initialFocus = null,
 }: {
   brandName: string;
   initialMessages: ChatItem[];
@@ -165,6 +166,8 @@ export function ExpertChat({
   persisted: boolean;
   /** A message typed elsewhere (client home, a to-do line): sent once on arrival. */
   initialDraft?: string;
+  /** A creation picked in the Studio: the expert looks at it first. */
+  focus?: { id: string; src: string; label: string } | null;
   /** Current state of the brand, so a proposal shows a real before → after. */
   os: BrandOS | null;
   mega: MegaPrompt;
@@ -172,6 +175,7 @@ export function ExpertChat({
   const router = useRouter();
   const [messages, setMessages] = useState<ChatItem[]>(initialMessages);
   const [notice, setNotice] = useState<string | null>(null);
+  const [focus, setFocus] = useState(initialFocus);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -206,7 +210,7 @@ export function ExpertChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // The model only needs roles and text; proposals already applied live in the Brand OS it receives.
-        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })) }),
+        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), focusOutId: focus?.id }),
       });
       if (!res.ok || !res.body) {
         const detail = await res.json().catch(() => null);
@@ -319,6 +323,22 @@ export function ExpertChat({
       {notice ? <p role="status" className="rounded-inner bg-success-tint px-4 py-3 text-small text-success">{notice}</p> : null}
       {error ? <p role="alert" className="rounded-inner bg-danger-tint px-4 py-3 text-small text-danger">{error}</p> : null}
 
+      {focus ? (
+        <div className="flex items-center gap-3 rounded-inner bg-tint p-2 pr-3">
+          <span className="relative block size-12 flex-none overflow-hidden rounded-inner bg-soft">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={focus.src} alt="" className="absolute inset-0 size-full object-cover" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-mono text-meta text-mute">À propos de cette création</span>
+            <span className="block truncate text-small text-ink">{focus.label}</span>
+          </span>
+          <button type="button" onClick={() => setFocus(null)} aria-label="Ne plus parler de cette création" className="grid size-8 flex-none place-items-center rounded-pill text-mute transition duration-(--duration-fast) ease-cimaise hover:bg-card hover:text-ink">
+            <X size={16} strokeWidth={1.75} />
+          </button>
+        </div>
+      ) : null}
+
       <form onSubmit={onSubmit} className="flex items-end gap-2 rounded-card bg-soft p-2">
         <textarea
           value={draft}
@@ -326,7 +346,7 @@ export function ExpertChat({
           onKeyDown={onKeyDown}
           rows={2}
           maxLength={MAX_MESSAGE_CHARS}
-          placeholder={`Parlez à l’expert de ${brandName} comme à un collègue…`}
+          placeholder={focus ? "Qu’est-ce qui ne va pas dans cette création ?" : `Parlez à l’expert de ${brandName} comme à un collègue…`}
           aria-label="Votre message"
           className="w-full resize-none bg-transparent px-3 py-2 text-body text-ink placeholder:text-mute focus:outline-none"
         />

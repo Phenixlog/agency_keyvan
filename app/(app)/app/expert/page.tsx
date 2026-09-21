@@ -5,13 +5,15 @@ import { BrandCard, ButtonLink, Card, CardHeader, Empty, Meta, Notice } from "@/
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { clearThread, loadThread } from "@/lib/expert";
 import { isLlmConfigured } from "@/lib/llm/openrouter";
+import { outImageUrl, type OutPayload } from "@/lib/outs";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExpertPage({ searchParams }: { searchParams: Promise<{ message?: string }> }) {
+export default async function ExpertPage({ searchParams }: { searchParams: Promise<{ message?: string; image?: string }> }) {
   const { brand, os, mega } = await getWorkspace();
-  const { message } = await searchParams;
+  const { message, image } = await searchParams;
 
   if (!brand || !os) {
     return (
@@ -25,6 +27,15 @@ export default async function ExpertPage({ searchParams }: { searchParams: Promi
   }
 
   const thread = await loadThread(brand.id);
+
+  // Arriving from a Studio tile: the conversation is about that creation.
+  const supabase = await createSupabaseServerClient();
+  const { data: focusOut } =
+    image && /^[0-9a-f-]{36}$/i.test(image)
+      ? await supabase.from("outs").select("id,payload").eq("id", image).eq("brand_id", brand.id).maybeSingle()
+      : { data: null };
+  const focusPayload = (focusOut?.payload ?? null) as OutPayload | null;
+  const focusSrc = outImageUrl(focusPayload);
   const rules = mega?.rules.length ?? 0;
 
   async function reset() {
@@ -91,6 +102,7 @@ export default async function ExpertPage({ searchParams }: { searchParams: Promi
           key={thread.persisted ? `${brand.id}-${os.version}-${mega?.version ?? 0}-${thread.messages.length}` : brand.id}
           persisted={thread.persisted}
           initialDraft={message?.slice(0, 500)}
+          focus={focusOut && focusSrc ? { id: focusOut.id as string, src: focusSrc, label: focusPayload?.brief || "Création sans brief" } : null}
           brandName={brand.name}
           initialMessages={thread.messages}
           os={os.canon}

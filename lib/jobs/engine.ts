@@ -6,6 +6,7 @@ import {
   isBrandOS,
   normalizeMega,
   type ImageFormat,
+  type ImageMode,
 } from "@/lib/brand-os";
 
 export type DbJobStatus =
@@ -20,7 +21,33 @@ type GenerationArgs = {
   brandId: string;
   userId: string;
   brief?: string | null;
+  /** describe (default): from words · restage: the client's real product in a new scene · retouch: one change on a creation. */
+  mode?: ImageMode;
+  /** Public URL of the reference photo (restage) or of the creation to fix (retouch). */
+  referenceUrl?: string | null;
+  /** What the reference shows, in the owner's words ("tasse Lune ivoire"). */
+  subject?: string | null;
+  /** The change asked for when retouching. */
+  instruction?: string | null;
+  /** Creations made from the same click share a batch id: they are proposals of one brief. */
+  batchId?: string | null;
+  parentOutId?: string | null;
 };
+
+const POLL_INTERVAL_MS = 800;
+// GPT Image takes 20-60 s per picture, more at 4k or when editing from a reference.
+const MAX_POLLS: Record<"describe" | "edit", number> = { describe: 150, edit: 225 };
+export const PROPOSALS_PER_BRIEF = 3;
+
+/**
+ * Several proposals for one brief, generated in parallel: each gets its own LLM-written prompt,
+ * so they differ in idea and not only in noise. One failure does not cancel the others.
+ */
+export async function queueProposals(args: GenerationArgs & { format: ImageFormat }, count = PROPOSALS_PER_BRIEF) {
+  const batchId = crypto.randomUUID();
+  const results = await Promise.all(Array.from({ length: count }, () => queueImageGeneration({ ...args, batchId })));
+  return { batchId, jobIds: results.map((r) => r.jobId) };
+}
 
 export function queueSocialGeneration(args: GenerationArgs) {
   return queueImageGeneration({ ...args, format: "social_square" });
@@ -31,6 +58,7 @@ export async function queueImageGeneration(
 ): Promise<{ jobId: string }> {
   const supabase = await createSupabaseServerClient();
   const format = IMAGE_FORMATS[args.format];
+  const mode: ImageMode = args.referenceUrl ? (args.mode === "retouch" ? "retouch" : "restage") : "describe";
 
   // Fetch latest OS + Mega
   const [{ data: os }, { data: mega }] = await Promise.all([
@@ -57,6 +85,9 @@ export async function queueImageGeneration(
     mega: normalizeMega(mega?.content),
     brief: args.brief,
     format: args.format,
+    mode,
+    subject: args.subject,
+    instruction: args.instruction,
   });
 
   // Insert job as queued
@@ -85,14 +116,14 @@ export async function queueImageGeneration(
     // Submit image generation task
     const taskId = await submitImageTask({
       prompt: composedPrompt,
-      size: format.size,
-      output_format: "jpeg",
-      seed: -1,
+      aspectRatio: format.aspectRatio,
+      resolution: format.resolution,
+      images: args.referenceUrl ? [args.referenceUrl] : undefined,
     });
 
     // Poll for result (bounded)
     let outputs: string[] | undefined;
-    for (let attempt = 0; attempt < 30; attempt++) {
+    for (let attempt = 0; attempt < MAX_POLLS[mode === "describe" ? "describe" : "edit"]; attempt++) {
       const res = await fetchTaskResult(taskId);
       const status = (res.data?.status || "").toLowerCase();
       if (status === "completed" || status === "succeeded") {
@@ -102,7 +133,7 @@ export async function queueImageGeneration(
       if (status === "failed" || status === "canceled") {
         throw new Error(`WaveSpeed statut: ${status}`);
       }
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     }
     if (!outputs || outputs.length === 0) {
       throw new Error("Aucune image générée par WaveSpeed.");
@@ -135,6 +166,13 @@ export async function queueImageGeneration(
       kind: format.kind,
       format: args.format,
       brief: args.brief?.trim() || null,
+      // Where this image comes from: shown in the Studio ("d'où vient cette image").
+      mode,
+      subject: args.subject?.trim() || null,
+      instruction: args.instruction?.trim() || null,
+      reference_url: args.referenceUrl ?? null,
+      parent_out_id: args.parentOutId ?? null,
+      batch_id: args.batchId ?? null,
       image_url: imageUrl,
       storage_path: storagePath || null,
       prompt: composedPrompt,
