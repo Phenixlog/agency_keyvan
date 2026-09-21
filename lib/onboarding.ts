@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { brandColorFromPalette } from "@/lib/tokens";
 import { BlockedUrlError, safeFetchText } from "@/lib/safe-fetch";
-import { buildBrandOS, renderSummary, type MegaPrompt } from "@/lib/brand-os";
+import { buildBrandOS, isBrandOS, renderSummary, type BrandOS, type MegaPrompt } from "@/lib/brand-os";
 
 export type OnboardingSession = {
   id: string;
@@ -225,3 +227,41 @@ function slugify(s: string) {
     .replace(/(^-|-$)/g, "");
 }
 
+
+/**
+ * Contexte commun des étapes 2 à 6 : utilisateur connecté + session d'onboarding avec sa marque.
+ * Sans marque en cours, on repart de l'étape 1 au lieu de planter plus loin.
+ */
+export async function requireOnboardingBrand() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const session = await getActiveOnboardingSession(user.id);
+  const brandId = session?.data?.brand_id as string | undefined;
+  if (!session || !session.org_id || !brandId) redirect("/onboarding/01");
+  return { supabase, user, session, orgId: session.org_id, brandId };
+}
+
+/** Brand OS v1 de la marque en cours d'onboarding, avec sa couleur. */
+export async function getOnboardingBrandOS(brandId: string) {
+  const supabase = await createSupabaseServerClient();
+  const [{ data: brand }, { data: os }] = await Promise.all([
+    supabase.from("brands").select("name").eq("id", brandId).maybeSingle(),
+    supabase
+      .from("brand_os_versions")
+      .select("summary,canon")
+      .eq("brand_id", brandId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const canon: (BrandOS & { generated_by?: string }) | null = isBrandOS(os?.canon) ? os.canon : null;
+  return {
+    name: (brand?.name as string | undefined) ?? "votre marque",
+    summary: (os?.summary as string | undefined) ?? "",
+    canon,
+    color: brandColorFromPalette(canon?.visual.palette),
+  };
+}

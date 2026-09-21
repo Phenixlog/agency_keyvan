@@ -1,42 +1,28 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import {
-  getActiveOnboardingSession,
-  scrapeUrl,
-  upsertOnboardingSession,
-  extractUrl,
-} from "@/lib/onboarding";
+import { ArrowRight, Globe, TextQuote } from "lucide-react";
+import { Step } from "@/components/onboarding/Step";
+import { Meta } from "@/components/ui";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { extractUrl, requireOnboardingBrand, scrapeUrl, upsertOnboardingSession } from "@/lib/onboarding";
 
 export const dynamic = "force-dynamic";
 
 export default async function OB02() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const session = await getActiveOnboardingSession(user.id);
-  const seed = session?.seed || "";
-  const maybeUrl = extractUrl(seed);
+  const { session } = await requireOnboardingBrand();
+  const url = extractUrl(session.seed);
 
   async function startScrape() {
     "use server";
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
-    const ob = await getActiveOnboardingSession(user.id);
-    const seed = ob?.seed || "";
+    const { user, session, brandId } = await requireOnboardingBrand();
+    const seed = session.seed || "";
     const url = extractUrl(seed);
     if (url) {
       const corpus = await scrapeUrl(url);
       await upsertOnboardingSession({
         userId: user.id,
-        orgId: ob?.org_id ?? null,
+        orgId: session.org_id,
         seed,
-        brandId: ob?.data?.brand_id,
+        brandId,
         scrape: { url, corpus },
       });
     }
@@ -44,33 +30,30 @@ export default async function OB02() {
   }
 
   return (
-    <div className="w-full max-w-xl rounded-xl bg-white p-8 shadow-sm ring-1 ring-black/5">
-      <h2 className="text-2xl font-semibold text-zinc-900">OB-02 · Cibles</h2>
-      <p className="mt-2 text-zinc-700">
-        Nous analysons votre source pour bâtir un premier Brand OS.{" "}
-        {maybeUrl ? (
-          <span className="text-zinc-600">Source détectée: {maybeUrl}</span>
-        ) : (
-          <span className="text-zinc-600">
-            Pas d’URL détectée, nous utiliserons uniquement votre texte.
-          </span>
-        )}
-      </p>
-      <form action={startScrape} className="mt-6 flex items-center gap-3">
-        <Link
-          href="/onboarding/01"
-          className="text-zinc-600 underline underline-offset-4"
-        >
-          Retour
-        </Link>
-        <button
-          type="submit"
-          className="ml-auto inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-white hover:opacity-90"
-        >
-          Lancer la lecture
-        </button>
+    <Step
+      step={2}
+      back="/onboarding/01"
+      title={url ? "On lit le site" : "On part de votre description"}
+      intro={
+        url
+          ? "Brand OS lit la page publique de la marque pour en tirer sa matière première : ce qu’elle dit, à qui, et comment."
+          : "Aucune adresse de site détectée : l’analyse s’appuiera uniquement sur votre texte. Vous pouvez revenir en arrière pour en ajouter une."
+      }
+    >
+      <div className="flex items-center gap-4 rounded-inner bg-soft p-4">
+        <span className="grid size-10 flex-none place-items-center rounded-pill bg-card text-ink">
+          {url ? <Globe size={18} strokeWidth={1.75} /> : <TextQuote size={18} strokeWidth={1.75} />}
+        </span>
+        <div className="min-w-0">
+          <Meta>{url ? "Source détectée" : "Votre description"}</Meta>
+          <p className={`text-body text-ink ${url ? "truncate" : "line-clamp-3"}`}>{url ?? session.seed}</p>
+        </div>
+      </div>
+      <form action={startScrape} className="grid">
+        <SubmitButton pendingLabel="Lecture du site…" className="justify-self-end">
+          {url ? "Lire le site" : "Continuer"} <ArrowRight size={18} strokeWidth={1.75} />
+        </SubmitButton>
       </form>
-    </div>
+    </Step>
   );
 }
-

@@ -163,7 +163,8 @@ export function fallbackBrandOS(source: string, nameHint?: string | null): Brand
     tone: ["clair", "direct"],
     pillars: sentences.slice(2, 5),
     visual: {
-      palette: [],
+      // Hex codes written in the source are facts, not guesses: keep them so the workspace can retint.
+      palette: Array.from(new Set((source.match(/#[0-9a-f]{6}\b/gi) ?? []).map((hex) => hex.toUpperCase()))).slice(0, 5),
       style: "photographie naturelle, lumière douce",
       mood: "sobre et lisible",
       avoid: ["texte dans l'image", "visuels génériques de banque d'images"],

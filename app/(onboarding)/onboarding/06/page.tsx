@@ -1,65 +1,55 @@
-import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOnboardingSession, markOnboardingCompleted } from "@/lib/onboarding";
+import { ArrowRight } from "lucide-react";
+import { Step } from "@/components/onboarding/Step";
+import { Meta } from "@/components/ui";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { getOnboardingBrandOS, markOnboardingCompleted, requireOnboardingBrand } from "@/lib/onboarding";
+import { ACTIVE_BRAND_COOKIE } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
+const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
+
 export default async function OB06() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const session = await getActiveOnboardingSession(user.id);
-  const brandId = session?.data?.brand_id as string;
-  const { data: outsReady } = await supabase
-    .from("outs")
-    .select("id")
-    .eq("brand_id", brandId)
-    .eq("status", "ready");
-  const canProceed = (outsReady?.length || 0) > 0;
+  const { supabase, brandId } = await requireOnboardingBrand();
+  const [brand, { count }] = await Promise.all([
+    getOnboardingBrandOS(brandId),
+    supabase.from("outs").select("id", { count: "exact", head: true }).eq("brand_id", brandId).eq("status", "ready"),
+  ]);
+  const kept = count ?? 0;
 
   async function finish() {
     "use server";
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
-    const session = await getActiveOnboardingSession(user.id);
-    if (session) {
-      await markOnboardingCompleted(session.id);
-    }
-    const brandId = session?.data?.brand_id as string | undefined;
-    redirect(brandId ? `/app/marque?brand=${brandId}` : "/app/marque");
+    const { session, brandId } = await requireOnboardingBrand();
+    await markOnboardingCompleted(session.id);
+    // Land in the app on the brand that was just created.
+    (await cookies()).set(ACTIVE_BRAND_COOKIE, brandId, { path: "/", maxAge: ONE_YEAR_SECONDS, sameSite: "lax" });
+    redirect("/app");
   }
 
   return (
-    <div className="w-full max-w-xl rounded-xl bg-white p-8 shadow-sm ring-1 ring-black/5">
-      <h2 className="text-2xl font-semibold text-zinc-900">
-        OB-06 · Entrée BO
-      </h2>
-      <p className="mt-2 text-zinc-700">
-        {canProceed
-          ? "Au moins une sortie a été conservée. Prêt à entrer dans l’app."
-          : "Vous pouvez continuer quand même ou conserver une sortie."}
-      </p>
-      <form action={finish} className="mt-6 flex items-center gap-3">
-        <Link
-          href="/onboarding/05"
-          className="text-zinc-600 underline underline-offset-4"
-        >
-          Retour
-        </Link>
-        <button
-          type="submit"
-          className="ml-auto inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-white hover:opacity-90"
-        >
-          Entrer dans l’app
-        </button>
+    <Step
+      step={6}
+      back="/onboarding/05"
+      brandColor={brand.color}
+      title={
+        <>
+          <em className="highlighter">{brand.name}</em> est à la cimaise
+        </>
+      }
+      intro={
+        kept
+          ? "Le Brand OS est en place et vos premières créations sont gardées. La suite se passe dans l’atelier : créer, trier, planifier."
+          : "Le Brand OS est en place. Vous n’avez gardé aucune création pour l’instant : vous pourrez en créer d’autres dans l’atelier."
+      }
+    >
+      <form action={finish} className="flex items-center justify-between gap-4">
+        <Meta>{kept} création{kept > 1 ? "s" : ""} gardée{kept > 1 ? "s" : ""}</Meta>
+        <SubmitButton pendingLabel="Ouverture…">
+          Entrer dans l’atelier <ArrowRight size={18} strokeWidth={1.75} />
+        </SubmitButton>
       </form>
-    </div>
+    </Step>
   );
 }
-

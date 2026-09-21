@@ -1,134 +1,124 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOnboardingSession, keepOut } from "@/lib/onboarding";
-import { queueSocialGeneration } from "@/lib/jobs/engine";
+import { ArrowRight, Pin } from "lucide-react";
+import { Step } from "@/components/onboarding/Step";
+import { ButtonLink, Field, Input, Meta, Notice, Tag } from "@/components/ui";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { queueSocialGeneration, getJob } from "@/lib/jobs/engine";
 import { bumpMegaPrompt } from "@/lib/learning";
-import { JobProgress } from "@/components/jobs/JobProgress";
+import { getOnboardingBrandOS, keepOut, requireOnboardingBrand } from "@/lib/onboarding";
+import { outImageUrl, type OutPayload } from "@/lib/outs";
 
 export const dynamic = "force-dynamic";
 
-export default async function OB05() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const session = await getActiveOnboardingSession(user.id);
-  const orgId = session?.org_id!;
-  const brandId = session?.data?.brand_id as string;
-  const { data: outs } = await supabase
-    .from("outs")
-    .select("id, kind, payload, status")
-    .eq("brand_id", brandId)
-    .order("created_at", { ascending: true });
+const MAX_TEXT = 300;
+
+export default async function OB05({ searchParams }: { searchParams: Promise<{ job?: string; learned?: string }> }) {
+  const { supabase, brandId } = await requireOnboardingBrand();
+  const { job: jobId, learned } = await searchParams;
+  const [brand, { data: outs }, job] = await Promise.all([
+    getOnboardingBrandOS(brandId),
+    supabase
+      .from("outs")
+      .select("id,payload,status")
+      .eq("brand_id", brandId)
+      .neq("status", "archived")
+      .order("created_at", { ascending: false }),
+    jobId ? getJob(jobId) : null,
+  ]);
+  const keptCount = (outs ?? []).filter((o) => o.status === "ready").length;
+
+  async function launch(formData: FormData) {
+    "use server";
+    const { user, orgId, brandId } = await requireOnboardingBrand();
+    const brief = String(formData.get("brief") || "").trim().slice(0, MAX_TEXT);
+    // The action waits for the image (10-25 s): the button shows progress meanwhile.
+    const { jobId } = await queueSocialGeneration({ orgId, brandId, userId: user.id, brief });
+    redirect(`/onboarding/05?job=${jobId}`);
+  }
 
   async function keep(formData: FormData) {
     "use server";
-    const outId = String(formData.get("outId"));
-    await keepOut(outId);
+    await requireOnboardingBrand();
+    await keepOut(String(formData.get("outId")));
     redirect("/onboarding/05");
   }
-  async function launch() {
-    "use server";
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
-    const { jobId } = await queueSocialGeneration({
-      orgId: orgId!,
-      brandId: brandId!,
-      userId: user.id,
-      brief: "OB‑05: preuve créa — premier social 1:1",
-    });
-    redirect(`/onboarding/05?job=${jobId}`);
-  }
+
   async function feedback(formData: FormData) {
     "use server";
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
-    const text = String(formData.get("feedback") || "").slice(0, 300);
-    await bumpMegaPrompt({ brandId: brandId!, userId: user.id, feedback: text });
-    redirect("/onboarding/05");
+    const { user, brandId } = await requireOnboardingBrand();
+    const text = String(formData.get("feedback") || "").trim().slice(0, MAX_TEXT);
+    if (!text) return;
+    await bumpMegaPrompt({ brandId, userId: user.id, feedback: text });
+    redirect("/onboarding/05?learned=1");
   }
 
   return (
-    <div className="w-full max-w-xl rounded-xl bg-white p-8 shadow-sm ring-1 ring-black/5">
-      <h2 className="text-2xl font-semibold text-zinc-900">
-        OB-05 · Preuve créa
-      </h2>
-      <p className="mt-2 text-zinc-700">Générez un visuel Social (1:1) réel, puis gardez au moins une sortie.</p>
-      <form action={launch} className="mt-4">
-        <button
-          type="submit"
-          className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-2 text-white hover:opacity-90"
-        >
-          Lancer une génération Social
-        </button>
+    <Step
+      step={5}
+      wide
+      back="/onboarding/04"
+      brandColor={brand.color}
+      title="Une première création"
+      intro={`Testez le Brand OS de ${brand.name} sur un vrai visuel. Gardez ce qui vous plaît, dites ce qui ne va pas : chaque remarque devient une règle pour la suite.`}
+    >
+      {job?.status === "failed" ? (
+        <Notice tone="danger">La création a échoué : {job.error || "erreur inconnue"}. Vous pouvez réessayer.</Notice>
+      ) : null}
+      {learned ? <Notice tone="success">Remarque intégrée : elle s’appliquera aux prochaines créations.</Notice> : null}
+
+      <form action={launch} className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+        <Field label="Que voulez-vous voir ?" hint="Facultatif. Sans brief, Brand OS illustre la promesse de la marque.">
+          <Input name="brief" maxLength={MAX_TEXT} placeholder="Une scène, un objet, une situation…" />
+        </Field>
+        <SubmitButton pendingLabel="Création en cours… (≈ 20 s)">Créer un visuel 1:1</SubmitButton>
       </form>
-      <JobProgress />
-      <form action={feedback} className="mt-4 space-y-2">
-        <label className="text-sm text-zinc-700">
-          Retour NL (soft bump du méga, impacte les prochaines générations)
-        </label>
-        <textarea
-          name="feedback"
-          rows={2}
-          placeholder="Ex: plus lisible, tons pastel, style minimaliste…"
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 placeholder-zinc-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        />
-        <button
-          type="submit"
-          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 hover:border-accent"
-        >
-          Appliquer au méga
-        </button>
-      </form>
-      <div className="mt-4 space-y-3">
-        {(outs || []).map((o) => (
-          <form key={o.id} action={keep} className="flex items-center gap-3">
-            <div className="flex-1 rounded-md border border-zinc-200 bg-white px-3 py-2">
-              <div className="text-sm font-medium text-zinc-800">{o.kind}</div>
-              <div className="text-sm text-zinc-600">
-                {JSON.stringify(o.payload)}
-              </div>
-              <div className="text-xs text-zinc-500">Statut: {o.status}</div>
-            </div>
-            {o.status !== "ready" ? (
-              <>
-                <input type="hidden" name="outId" value={o.id} />
-                <button
-                  type="submit"
-                  className="rounded-md bg-accent px-3 py-2 text-white hover:opacity-90"
-                >
-                  Garder
-                </button>
-              </>
-            ) : (
-              <span className="text-emerald-700 text-sm">Conservé</span>
-            )}
-          </form>
-        ))}
+
+      {outs?.length ? (
+        <ul className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          {outs.map((out) => {
+            const payload = out.payload as OutPayload | null;
+            const src = outImageUrl(payload);
+            return (
+              <li key={out.id} className="grid gap-2">
+                <div className="relative aspect-square overflow-hidden rounded-inner bg-tint">
+                  {src ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={src} alt={payload?.brief || "Création"} className="size-full object-cover" />
+                  ) : null}
+                </div>
+                {out.status === "ready" ? (
+                  <Tag tone="success">
+                    <Pin size={12} strokeWidth={1.75} /> Gardée
+                  </Tag>
+                ) : (
+                  <form action={keep}>
+                    <input type="hidden" name="outId" value={out.id} />
+                    <SubmitButton variant="soft" pendingLabel="…" className="w-full">
+                      <Pin size={18} strokeWidth={1.75} /> Garder
+                    </SubmitButton>
+                  </form>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
+      {outs?.length ? (
+        <form action={feedback} className="grid gap-4 border-t border-line pt-6 md:grid-cols-[1fr_auto] md:items-end">
+          <Field label="Quelque chose ne va pas ?" hint="Exemples : « moins de bleu », « toujours une personne dans le cadre », « pas de texte ».">
+            <Input name="feedback" maxLength={MAX_TEXT} required placeholder="Votre remarque" />
+          </Field>
+          <SubmitButton variant="soft" pendingLabel="Intégration…">En faire une règle</SubmitButton>
+        </form>
+      ) : null}
+
+      <div className="flex items-center justify-between gap-4 border-t border-line pt-6">
+        <Meta>{keptCount} création{keptCount > 1 ? "s" : ""} gardée{keptCount > 1 ? "s" : ""}</Meta>
+        <ButtonLink href="/onboarding/06" variant={keptCount ? "primary" : "soft"}>
+          Continuer <ArrowRight size={18} strokeWidth={1.75} />
+        </ButtonLink>
       </div>
-      <div className="mt-6 flex items-center gap-3">
-        <Link
-          href="/onboarding/04"
-          className="text-zinc-600 underline underline-offset-4"
-        >
-          Retour
-        </Link>
-        <Link
-          href="/onboarding/06"
-          className="ml-auto inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-white hover:opacity-90"
-        >
-          Suivant
-        </Link>
-      </div>
-    </div>
+    </Step>
   );
 }
-
