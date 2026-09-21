@@ -51,7 +51,7 @@ export default async function AppHome() {
   return (
     <>
       <header>
-        <Meta className="first-letter:uppercase">
+        <Meta className="block first-letter:uppercase">
           {today} · {brands.length} marque{brands.length > 1 ? "s" : ""} dans l’atelier
         </Meta>
         <h1 className="mt-2 font-display text-display text-ink">

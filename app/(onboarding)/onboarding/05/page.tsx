@@ -79,11 +79,11 @@ export default async function OB05({ searchParams }: { searchParams: Promise<{ j
             const payload = out.payload as OutPayload | null;
             const src = outImageUrl(payload);
             return (
-              <li key={out.id} className="grid gap-2">
+              <li key={out.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
                 <div className="relative aspect-square overflow-hidden rounded-inner bg-tint">
                   {src ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={src} alt={payload?.brief || "Création"} className="size-full object-cover" />
+                    <img src={src} alt={payload?.brief || "Création"} className="absolute inset-0 size-full object-cover" />
                   ) : null}
                 </div>
                 {out.status === "ready" ? (

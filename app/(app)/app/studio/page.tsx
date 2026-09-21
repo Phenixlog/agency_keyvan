@@ -138,11 +138,11 @@ export default async function StudioPage({
             const status = out.status as OutStatus;
             return (
               <li key={out.id} id={out.id}>
-                <Card className={`grid gap-4 p-4 ${focus === out.id ? "outline-2 outline-offset-2 outline-ink" : ""}`}>
+                <Card className={`grid grid-cols-[minmax(0,1fr)] gap-4 p-4 ${focus === out.id ? "outline-2 outline-offset-2 outline-ink" : ""}`}>
                   <div className="relative aspect-square overflow-hidden rounded-inner bg-tint">
                     {src ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt={payload?.brief || "Création"} loading="lazy" className="size-full object-cover" />
+                      <img src={src} alt={payload?.brief || "Création"} loading="lazy" className="absolute inset-0 size-full object-cover" />
                     ) : null}
                     <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-pill bg-card px-2 py-1 font-mono text-meta text-ink">
                       {status === "ready" ? <Pin size={12} strokeWidth={1.75} /> : status === "archived" ? <Archive size={12} strokeWidth={1.75} /> : <Clock size={12} strokeWidth={1.75} />}
