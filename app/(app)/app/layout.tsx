@@ -1,97 +1,66 @@
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { LogOut } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
+import { PillNav } from "@/components/app/PillNav";
+import { ACTIVE_BRAND_COOKIE, getWorkspace } from "@/lib/workspace";
+import { brandStyle } from "@/lib/tokens";
 
 export const dynamic = "force-dynamic";
 
-export default async function AppLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: brands } = await supabase
-    .from("brands")
-    .select("id,name")
-    .order("created_at", { ascending: true });
-  const cookieStore = await cookies();
-  const activeBrand = cookieStore.get("active_brand")?.value || brands?.[0]?.id;
+const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const { brands, brand, brandColor } = await getWorkspace();
+
+  // Setting a cookie in a server action re-renders the current route: no redirect needed.
   async function setBrand(formData: FormData) {
     "use server";
     const id = String(formData.get("brand") || "");
-    const store = await cookies();
-    store.set("active_brand", id, { path: "/", maxAge: 60 * 60 * 24 * 365 });
-    redirect(`/app/marque?brand=${id}`);
+    if (!id) return;
+    (await cookies()).set(ACTIVE_BRAND_COOKIE, id, { path: "/", maxAge: ONE_YEAR_SECONDS, sameSite: "lax" });
   }
+
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <Link href="/app" className="font-semibold text-zinc-900">
-            Brand OS
+    // The client brand colour is scoped here: everything inside retints, the scene does not.
+    <div className="min-h-screen p-4 md:p-8" style={brandStyle(brandColor) as CSSProperties}>
+      <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-6 rounded-shell bg-shell p-4 md:p-6">
+        <header className="flex flex-wrap items-center justify-between gap-2 rounded-card bg-card p-2 pl-4 lg:flex-nowrap lg:gap-4 lg:rounded-pill">
+          <Link href="/app" aria-label="Accueil">
+            <Logo />
           </Link>
-          <nav className="flex items-center gap-5 text-zinc-700">
-            <Link href="/app/marque" className="hover:text-accent">
-              Marque
-            </Link>
-            <Link href="/app/creer" className="hover:text-accent">
-              Créer
-            </Link>
-            <Link href="/app/studio" className="hover:text-accent">
-              Studio
-            </Link>
-            <Link href="/app/calendrier" className="hover:text-accent">
-              Calendrier
-            </Link>
-            <Link href="/app/expert" className="hover:text-accent">
-              Expert
-            </Link>
-          </nav>
-          <div>
-            <form action={setBrand} className="flex items-center gap-2">
-              {brands && brands.length > 0 ? (
-                <>
-                  <label className="text-sm text-zinc-700">Marque:</label>
-                  <select
-                    name="brand"
-                    className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    defaultValue={activeBrand}
-                  >
-                    {brands.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:border-accent"
-                  >
-                    Ouvrir
-                  </button>
-                </>
-              ) : (
-                <span className="text-sm text-zinc-600">Aucune marque</span>
-              )}
-              {user ? (
-                <a
-                  href="/logout"
-                  className="ml-3 text-sm text-zinc-700 underline underline-offset-4"
-                >
-                  Déconnexion
-                </a>
-              ) : null}
-            </form>
+          <div className="order-last w-full min-w-0 lg:order-none lg:w-auto">
+            <PillNav />
           </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+          <a
+            href="/logout"
+            aria-label="Déconnexion"
+            title="Déconnexion"
+            className="grid size-10 place-items-center rounded-pill bg-soft text-ink transition duration-(--duration-fast) ease-cimaise hover:bg-ink hover:text-card"
+          >
+            <LogOut size={18} strokeWidth={1.75} />
+          </a>
+        </header>
+
+        {brands.length > 1 ? (
+          <form action={setBrand} aria-label="Marque active" className="flex gap-1 self-start overflow-x-auto rounded-pill bg-card p-1">
+            {brands.map((b) => (
+              <button
+                key={b.id}
+                name="brand"
+                value={b.id}
+                aria-pressed={b.id === brand?.id}
+                className="whitespace-nowrap rounded-pill px-4 py-2 text-small text-mute transition duration-(--duration-fast) ease-cimaise hover:text-ink aria-pressed:bg-soft aria-pressed:font-semibold aria-pressed:text-ink"
+              >
+                {b.name}
+              </button>
+            ))}
+          </form>
+        ) : null}
+
+        <main className="grid min-w-0 gap-6">{children}</main>
+      </div>
     </div>
   );
 }
-

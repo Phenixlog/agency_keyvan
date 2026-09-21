@@ -1,24 +1,107 @@
 @import "tailwindcss";
 
-:root {
-  /* Light tokens (no dark-ops) */
-  --paper: #F5F1EA;   /* paper */
-  --accent: #0E5C66;  /* teal accent */
-  --background: var(--paper);
-  --foreground: #171717;
+/*
+ * Miroir Tailwind de lib/tokens.ts (direction « Cimaise »).
+ * Ne modifiez jamais une valeur ici seule : lib/tokens.test.mjs compare les deux fichiers.
+ */
+@theme {
+  --color-scene: #E4E0D6;
+  --color-shell: #F6F4EE;
+  --color-card: #FFFFFF;
+  --color-soft: #EDEAE2;
+  --color-line: #E2DED4;
+  --color-ink: #1A1815;
+  --color-mute: #69645A;
+  --color-success: #2F6B4F;
+  --color-success-tint: #E3EFE8;
+  --color-danger: #B3402E;
+  --color-danger-tint: #F7E4E0;
+  --color-warning: #7A5C14;
+  --color-warning-tint: #F5ECD2;
+
+  /* Couleur de la marque cliente active : remplacée en ligne par brandStyle() dans l'app. */
+  --color-brand: #1A1815;
+  --color-on-brand: #FFFFFF;
+
+  --radius-tag: 6px;
+  --radius-inner: 16px;
+  --radius-card: 24px;
+  --radius-shell: 32px;
+  --radius-pill: 999px;
+
+  --shadow-lift: 0 8px 24px rgba(26, 24, 21, 0.08);
+  --shadow-float: 0 16px 48px rgba(26, 24, 21, 0.14);
+
+  --text-display: 44px;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.01em;
+  --text-display--font-weight: 400;
+  --text-h1: 32px;
+  --text-h1--line-height: 1.1;
+  --text-h1--letter-spacing: -0.01em;
+  --text-h1--font-weight: 400;
+  --text-h2: 20px;
+  --text-h2--line-height: 1.3;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h2--font-weight: 600;
+  --text-title: 15px;
+  --text-title--line-height: 1.4;
+  --text-title--font-weight: 600;
+  --text-body: 15px;
+  --text-body--line-height: 1.55;
+  --text-small: 13px;
+  --text-small--line-height: 1.45;
+  --text-meta: 12px;
+  --text-meta--line-height: 1.4;
+  --text-meta--letter-spacing: -0.01em;
+
+  --ease-cimaise: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Alias hérités du scaffold, retirés écran par écran pendant la refonte. */
+  --color-paper: #E4E0D6;
+  --color-accent: #1A1815;
+  --color-background: #E4E0D6;
+  --color-foreground: #1A1815;
 }
 
+/*
+ * « inline » : l'expression est recopiée dans chaque utilitaire, donc recalculée là où
+ * --color-brand est redéfinie. Déclarées sur :root, ces teintes resteraient figées.
+ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-paper: var(--paper);
-  --color-accent: var(--accent);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-tint: color-mix(in srgb, var(--color-brand) 12%, var(--color-card));
+  --color-tint-strong: color-mix(in srgb, var(--color-brand) 22%, var(--color-card));
+  --color-highlighter: color-mix(in srgb, var(--color-brand) 55%, transparent);
+
+  --font-display: var(--font-instrument-serif), Georgia, serif;
+  --font-sans: var(--font-instrument-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+/* Tailwind n'a pas d'espace de noms « durée » dans @theme : variables simples, utilisées via duration-(--duration-*). */
+:root {
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-retint: 400ms;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-scene);
+  color: var(--color-ink);
+  font-family: var(--font-instrument-sans), system-ui, sans-serif;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+}
+
+/* Le surligneur : seule façon d'écrire « dans » la couleur cliente, qui n'est jamais une couleur de texte. */
+.highlighter {
+  padding-inline: 4px;
+  /* Expression recopiée (et non var(--color-highlighter)) pour suivre --color-brand là où elle est redéfinie. */
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--color-brand) 55%, transparent) 0);
+  transition: background var(--duration-retint) var(--ease-cimaise);
+}
+
+/* Hachures : unique motif de la DA, réservé aux aplats de couleur cliente. */
+.hatch {
+  background-image: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 10px);
 }

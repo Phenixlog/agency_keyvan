@@ -1,20 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import AuthHashCatcher from "@/components/AuthHashCatcher";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Familles de lib/tokens.ts (T.font.family) : titres, interface, métadonnées.
+const display = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
+const text = Instrument_Sans({
+  variable: "--font-instrument-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const meta = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Brand OS · Sprint 1",
+  title: "Brand OS",
   description: "Self-serve Brand OS — SaaS Lab",
 };
 
@@ -22,9 +30,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${display.variable} ${text.variable} ${meta.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-paper text-foreground">
+      <body className="min-h-full flex flex-col bg-scene text-ink">
         <AuthHashCatcher />
         {children}
       </body>
