@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildBrandOS, isBrandOS, normalizeMega, renderSummary, type BrandOS, type MegaPrompt } from "@/lib/brand-os";
+import { isMissingColumn } from "@/lib/db-errors";
 import { applyToBrandOS, applyToMega, describeChanges, touches, type Proposal } from "@/lib/expert/proposal";
 import { extractUrl, scrapeUrl } from "@/lib/onboarding";
 
@@ -193,4 +194,28 @@ export async function applyExpertProposal(args: {
     });
   }
   return { status: "applied", osVersion, megaVersion };
+}
+
+const MAX_BRAND_NAME = 80;
+
+/** RLS limits both writes to brands of the caller's organisations. */
+export async function renameBrand(brandId: string, name: string): Promise<"ok" | "invalid"> {
+  const clean = name.trim().replace(/\s+/g, " ").slice(0, MAX_BRAND_NAME);
+  if (!clean) return "invalid";
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("brands").update({ name: clean }).eq("id", brandId);
+  if (error) throw error;
+  return "ok";
+}
+
+/** Archiving hides a client from the workshop and keeps everything; nothing is ever deleted. */
+export async function setBrandArchived(brandId: string, archived: boolean): Promise<"ok" | "migration-needed"> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("brands")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("id", brandId);
+  if (isMissingColumn(error)) return "migration-needed";
+  if (error) throw error;
+  return "ok";
 }

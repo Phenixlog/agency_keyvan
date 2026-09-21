@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { isMissingColumn } from "@/lib/db-errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isBrandOS, normalizeMega, type BrandOS, type MegaPrompt } from "@/lib/brand-os";
 import { brandColorFromPalette } from "@/lib/tokens";
@@ -19,6 +20,23 @@ export type Workspace = {
   brandColor: string;
 };
 
+type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+export type BrandRow = { id: string; name: string; org_id: string; archived_at?: string | null };
+
+/** Active clients (or archived ones). Before migration 0005 nothing can be archived: all are active. */
+export async function listBrands(supabase: Supabase, archived: boolean): Promise<BrandRow[]> {
+  const query = supabase.from("brands").select("id,name,org_id,archived_at").order("created_at", { ascending: true });
+  const { data, error } = await (archived ? query.not("archived_at", "is", null) : query.is("archived_at", null));
+  if (isMissingColumn(error)) {
+    if (archived) return [];
+    const fallback = await supabase.from("brands").select("id,name,org_id").order("created_at", { ascending: true });
+    if (fallback.error) throw fallback.error;
+    return fallback.data ?? [];
+  }
+  if (error) throw error;
+  return data ?? [];
+}
+
 /**
  * Tout ce qu'un écran de l'app doit savoir sur « où on est ».
  * cache() : le layout et la page partagent une seule lecture par requête.
@@ -30,11 +48,7 @@ export const getWorkspace = cache(async (): Promise<Workspace> => {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: brandRows } = await supabase
-    .from("brands")
-    .select("id,name,org_id")
-    .order("created_at", { ascending: true });
-  const brands = brandRows ?? [];
+  const brands = await listBrands(supabase, false);
 
   const wanted = (await cookies()).get(ACTIVE_BRAND_COOKIE)?.value;
   const brand = brands.find((b) => b.id === wanted) ?? brands[0] ?? null;

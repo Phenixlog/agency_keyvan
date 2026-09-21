@@ -157,11 +157,14 @@ export function ExpertChat({
   os,
   mega,
   persisted,
+  initialDraft,
 }: {
   brandName: string;
   initialMessages: ChatItem[];
   /** True when the thread is stored server-side (migration applied). */
   persisted: boolean;
+  /** A message typed elsewhere (client home, a to-do line): sent once on arrival. */
+  initialDraft?: string;
   /** Current state of the brand, so a proposal shows a real before → after. */
   os: BrandOS | null;
   mega: MegaPrompt;
@@ -177,6 +180,16 @@ export function ExpertChat({
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
+
+  // Sent once: the parameter is dropped from the URL first, so a refresh or a remount cannot resend it.
+  const sentInitial = useRef(false);
+  useEffect(() => {
+    if (!initialDraft || sentInitial.current) return;
+    sentInitial.current = true;
+    router.replace("/app/expert");
+    void send(initialDraft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately on mount only
+  }, []);
 
   async function send(text: string) {
     const question = text.trim().slice(0, MAX_MESSAGE_CHARS);

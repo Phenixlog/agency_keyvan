@@ -9,8 +9,9 @@ import { getWorkspace } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExpertPage() {
+export default async function ExpertPage({ searchParams }: { searchParams: Promise<{ message?: string }> }) {
   const { brand, os, mega } = await getWorkspace();
+  const { message } = await searchParams;
 
   if (!brand || !os) {
     return (
@@ -64,7 +65,7 @@ export default async function ExpertPage() {
       {!thread.persisted ? (
         <Notice tone="warning">
           La conversation fonctionne, mais ne sera pas mémorisée tant que la base n’est pas à jour : rejouez{" "}
-          <code className="font-mono text-meta">supabase/migrations/0004_calendar_expert.sql</code> dans Supabase → SQL Editor. Les changements que vous appliquez, eux, sont bien enregistrés.
+          <code className="font-mono text-meta">supabase/migrations/0005_expert_and_clients.sql</code> dans Supabase → SQL Editor. Les changements que vous appliquez, eux, sont bien enregistrés.
         </Notice>
       ) : null}
 
@@ -89,6 +90,7 @@ export default async function ExpertPage() {
           // only lives in the browser, so a remount would erase it: key on the brand alone.
           key={thread.persisted ? `${brand.id}-${os.version}-${mega?.version ?? 0}-${thread.messages.length}` : brand.id}
           persisted={thread.persisted}
+          initialDraft={message?.slice(0, 500)}
           brandName={brand.name}
           initialMessages={thread.messages}
           os={os.canon}

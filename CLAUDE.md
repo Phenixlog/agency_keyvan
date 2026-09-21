@@ -18,6 +18,7 @@ Next.js **16.3.5** (App Router, `proxy.ts`, pas de `middleware.ts`) · React 19 
 - Après un test, lire les logs du serveur de dev : ces bugs ne cassent ni le build ni le typage.
 
 ## Architecture
+- `lib/clients.ts` — `listClientCards()` : tous les clients actifs et leurs signaux en 4 requêtes groupées ; sert « Mes clients » et le bloc « Ce qui vous attend » de l'accueil.
 - `lib/workspace.ts` — `getWorkspace()` (cache par requête) : user, marques, marque active (cookie `active_brand`), dernier Brand OS, dernier mega, couleur de marque. Point d'entrée de tout écran de `/app`.
 - `lib/brand-os/model.ts` — modèle pur et testé : types, schémas JSON, replis déterministes, formats d'image. `index.ts` — orchestration LLM ; **chaque étape LLM a un repli**, rien ne bloque sans clé.
 - `lib/llm/openrouter.ts` — sortie JSON stricte. Modèles : `OPENROUTER_MODEL_ANALYSIS` (déf. `anthropic/claude-sonnet-5`), `OPENROUTER_MODEL_FAST` (déf. `google/gemini-3.8-flash`).
@@ -37,15 +38,17 @@ Next.js **16.3.5** (App Router, `proxy.ts`, pas de `middleware.ts`) · React 19 
 - Pièges de mise en page : `grid-cols-[minmax(0,1fr)]` sur les grilles qui contiennent du texte tronqué ; les durées passent par `duration-(--duration-*)`.
 
 ## Conventions
+- **Migrations : ne jamais modifier un fichier déjà exécuté par Keyvan** (il les colle à la main dans le SQL Editor ; j'ai modifié `0004` deux fois après son passage et il a cru à tort être à jour). Tout changement = nouveau fichier numéroté, idempotent, terminé par une requête de contrôle. Le code doit tolérer la migration absente (`lib/db-errors.ts` : `isMissingTable`, `isMissingColumn`, `isForbidden`).
 - Interface et textes en français, écrits pour l'utilisateur (pas de codes internes type « OB-05 »).
 - Push direct sur `main`, commits `feat|fix|docs(module): …`. Décisions d'archi dans `docs/ADR-*.md`.
 - Ne jamais logger d'e-mail ni de mot de passe ; messages de login identiques pour « mauvais mot de passe » et « e-mail non confirmé » (anti-énumération).
 
 ## Current Focus (2026-09-21)
-Fait et vérifié en réel (clé OpenRouter en place, local + Railway) : analyse de marque, prompt d'image par LLM, fusion des règles, et **Expert de bout en bout** : il décrit factuellement les images produites, propose des règles, « Appliquer » crée mega-prompt v4, et la création suivante du même brief intègre les nouvelles règles dans son prompt.
+Revue page par page avec Keyvan (« on prend du recul sur chaque page : UX, fonctionnement, ce qui manque ») : pour chaque écran, **analyser et proposer d'abord, coder seulement après son accord**. Fait : **Accueil** (deux niveaux validés : `/app/clients` + accueil du client recentré sur l'action ; ajouter / renommer / archiver un client). Prochaine page : **Marque**, puis Créer, Studio, Calendrier, Expert, onboarding.
+
+Vérifié en réel : auth, onboarding → création → studio, moteur LLM (clé OpenRouter en place), Expert de bout en bout (lit les images, propose, « Appliquer » crée une version, la création suivante en tient compte), Calendrier (planifier / retirer).
 
 Reste :
-1. **Migration `0004_calendar_expert.sql`** à rejouer par Keyvan dans Supabase → SQL Editor (le dernier `select` doit renvoyer **8 lignes**). Historique des échecs : v1 → écritures refusées par la RLS (42501) ; v2 → 42P13 car `create or replace` sur `is_org_member`, dont la prod a une autre signature (ne JAMAIS la DROP) ; version actuelle = fonction dédiée `is_active_org_member`. Tant qu'elle n'est pas passée : Calendrier en lecture seule, conversation Expert non mémorisée (les changements appliqués, eux, le sont).
-2. Après la migration, tester : planifier / publier / retirer une publication, légende par LLM, conversation Expert qui survit au rechargement, état « appliquée » mémorisé.
-3. Jamais testés en réel : « Recréer » du Studio ; une proposition qui modifie le Brand OS lui-même (palette, ton, stratégie) — seule une proposition de règles a été appliquée pour l'instant.
-4. À surveiller : bucket Storage `outs` public ; marque « [TEST] Atelier Lune » à archiver ; coût Expert ≈ 2-3 centimes par message (Sonnet 5 + 4 images), sans plafond par utilisateur.
+1. **Migration `0005_expert_and_clients.sql`** à exécuter par Keyvan (contrôle : 5 lignes). Sans elle : conversation Expert non mémorisée, archivage d'un client impossible (bandeau).
+2. Jamais testés en réel : légende du calendrier par LLM, « Recréer » du Studio, une proposition de l'expert qui modifie le Brand OS lui-même (seules des règles ont été appliquées), archiver / restaurer un client.
+3. À surveiller : bucket Storage `outs` public ; marque « [TEST] Atelier Lune » ; coût Expert ≈ 2-3 centimes par message, sans plafond.

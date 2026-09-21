@@ -10,3 +10,8 @@ export function isMissingTable(error: { code?: string } | null | undefined): boo
 export function isForbidden(error: { code?: string } | null | undefined): boolean {
   return error?.code === "42501";
 }
+
+/** 42703 / PGRST204: the column is not there yet (migration pending). */
+export function isMissingColumn(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "42703" || error?.code === "PGRST204";
+}

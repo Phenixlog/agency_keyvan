@@ -74,7 +74,8 @@ export async function createDraftBrand(args: {
 }) {
   const supabase = await createSupabaseServerClient();
   const name = deriveBrandName(args.seed, args.url);
-  const slug = slugify(name);
+  // unique(org_id, slug): a second client with a similar name must not fail to be created.
+  const slug = `${slugify(name) || "marque"}-${crypto.randomUUID().slice(0, 6)}`;
   const { data, error } = await supabase
     .from("brands")
     .insert({

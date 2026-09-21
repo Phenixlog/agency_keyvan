@@ -3,10 +3,11 @@ import { ArrowUpRight, Pin } from "lucide-react";
 import { BrandCard, ButtonLink, Card, CardHeader, Empty, Field, Meta, Notice, Tag, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { IMAGE_FORMATS, type ImageFormat } from "@/lib/brand-os";
-import { getJob, queueImageGeneration } from "@/lib/jobs/engine";
+import { getJob } from "@/lib/jobs/engine";
 import { outImageUrl, setOutStatus, type OutPayload } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
+import { launchGeneration } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,17 +36,6 @@ export default async function CreerPage({ searchParams }: { searchParams: Promis
   const resultPayload = result?.payload as OutPayload | null;
   const resultSrc = outImageUrl(resultPayload);
 
-  async function launch(formData: FormData) {
-    "use server";
-    const { brand, userId } = await getWorkspace();
-    if (!brand) redirect("/app");
-    const requested = String(formData.get("format") || "");
-    const format: ImageFormat = requested in IMAGE_FORMATS ? (requested as ImageFormat) : "social_square";
-    const brief = String(formData.get("brief") || "").trim().slice(0, MAX_BRIEF);
-    const { jobId } = await queueImageGeneration({ orgId: brand.org_id, brandId: brand.id, userId, brief, format });
-    redirect(`/app/creer?job=${jobId}`);
-  }
-
   async function keep(formData: FormData) {
     "use server";
     await getWorkspace();
@@ -65,7 +55,7 @@ export default async function CreerPage({ searchParams }: { searchParams: Promis
 
       <div className="grid gap-4 lg:grid-cols-12">
         <Card className="lg:col-span-7">
-          <form action={launch} className="grid gap-6">
+          <form action={launchGeneration} className="grid gap-6">
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-small font-semibold text-ink">Format</legend>
               <div className="flex flex-wrap gap-2">

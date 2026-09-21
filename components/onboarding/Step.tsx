@@ -15,6 +15,7 @@ export function Step({
   title,
   intro,
   back,
+  backLabel = "Étape précédente",
   brandColor,
   wide = false,
   children,
@@ -23,6 +24,7 @@ export function Step({
   title: ReactNode;
   intro: ReactNode;
   back?: string;
+  backLabel?: string;
   brandColor?: string | null;
   wide?: boolean;
   children: ReactNode;
@@ -58,7 +60,7 @@ export function Step({
 
       {back ? (
         <ButtonLink href={back} variant="ghost" className="justify-self-start">
-          <ArrowLeft size={18} strokeWidth={1.75} /> Étape précédente
+          <ArrowLeft size={18} strokeWidth={1.75} /> {backLabel}
         </ButtonLink>
       ) : null}
     </div>

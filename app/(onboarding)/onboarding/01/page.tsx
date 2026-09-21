@@ -21,6 +21,8 @@ export default async function OB01() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const session = await getActiveOnboardingSession(user.id);
+  // Adding a second client must be escapable; a first-time user has nowhere to go back to.
+  const { count: clients } = await supabase.from("brands").select("id", { count: "exact", head: true });
 
   async function start(formData: FormData) {
     "use server";
@@ -46,6 +48,8 @@ export default async function OB01() {
   return (
     <Step
       step={1}
+      back={(clients ?? 0) > 0 ? "/app/clients" : undefined}
+      backLabel="Retour à mes clients"
       title="Par quoi on commence ?"
       intro="Collez l’adresse du site de la marque, décrivez-la en quelques phrases, ou les deux. Plus la matière est précise, plus le Brand OS sera juste."
     >

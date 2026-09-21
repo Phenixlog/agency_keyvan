@@ -74,7 +74,10 @@ export default async function LoginPage({
         const latest = existingOb && existingOb.length > 0 ? existingOb[0] : null;
         const wanted = String(formData.get("next") || "");
         const safeNext = /^\/(app|onboarding)(\/[\w\-/]*)?$/.test(wanted) ? wanted : null;
-        nextPath = safeNext ?? (latest?.status === "completed" ? "/app" : "/onboarding");
+        // Several clients: land on the list. One: straight into it. None yet: onboarding.
+        const { count: clients } = await supabase.from("brands").select("id", { count: "exact", head: true });
+        const home = (clients ?? 0) > 1 ? "/app/clients" : "/app";
+        nextPath = safeNext ?? (latest?.status === "completed" ? home : "/onboarding");
       }
     } catch (e) {
       console.error("[login] échec après authentification:", e);
