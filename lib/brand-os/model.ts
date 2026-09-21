@@ -59,14 +59,14 @@ export const IMAGE_FORMATS: Record<
     size: "1024*1448",
     kind: "print",
     direction:
-      "portrait print poster, clear visual hierarchy, calm upper third left empty for a headline, safe margins",
+      "full-bleed portrait image for a print poster: the picture fills the whole frame edge to edge, no border, no margin, no mock-up; clear visual hierarchy, a calm upper third left free for a headline",
   },
   print_a3: {
     label: "Affiche · ratio A3 (max)",
     size: "1088*1536",
     kind: "print",
     direction:
-      "large portrait print poster, bold composition readable from a distance, empty area for a headline, safe margins",
+      "full-bleed portrait image for a large print poster: the picture fills the whole frame edge to edge, no border, no margin, no mock-up; bold composition readable from a distance, a calm area left free for a headline",
   },
 };
 
