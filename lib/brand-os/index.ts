@@ -66,6 +66,7 @@ export async function composeImagePrompt(args: {
   mega: MegaPrompt;
   brief?: string | null;
   format: ImageFormat;
+  direction?: string;
   mode?: ImageMode;
   subject?: string | null;
   instruction?: string | null;

@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, CalendarDays, Check, Clock, MessageSquareWarn
 import { OutTile, type OutRow } from "@/components/app/OutTile";
 import { BrandCard, ButtonLink, Card, CardHeader, Empty, Field, Input, Meta, Tag, Textarea, VersionTag } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
-import { IMAGE_FORMATS, OFFERED_FORMATS } from "@/lib/brand-os";
+import { FORMAT_FAMILIES, IMAGE_FORMATS, OFFERED_FORMATS, type FormatFamily } from "@/lib/brand-os";
 import { PROPOSALS_PER_BRIEF } from "@/lib/jobs/engine";
 import { CHANNELS, toDay, upcomingEntries } from "@/lib/calendar";
 import { listClientCards } from "@/lib/clients";
@@ -137,16 +137,18 @@ export default async function ClientHome() {
               <Textarea name="brief" rows={2} maxLength={800} placeholder="Une scène, un objet, une situation…" />
             </Field>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
-                {OFFERED_FORMATS.map((key, index) => (
-                  <label key={key} className="cursor-pointer">
-                    <input type="radio" name="format" value={key} defaultChecked={index === 0} className="peer sr-only" />
-                    <span className="inline-flex rounded-pill bg-soft px-3 py-2 text-small text-mute transition duration-(--duration-fast) ease-cimaise peer-checked:bg-ink peer-checked:text-card peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink">
-                      {IMAGE_FORMATS[key].label}
-                    </span>
-                  </label>
+              {/* The full picker (and custom formats) lives in the Studio; here a compact grouped list is enough. */}
+              <select name="format" defaultValue="social_square" aria-label="Format" className="max-w-full rounded-pill bg-soft px-4 py-2 text-small text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+                {(Object.keys(FORMAT_FAMILIES) as FormatFamily[]).map((family) => (
+                  <optgroup key={family} label={FORMAT_FAMILIES[family]}>
+                    {OFFERED_FORMATS.filter((key) => IMAGE_FORMATS[key].family === family).map((key) => (
+                      <option key={key} value={key}>
+                        {IMAGE_FORMATS[key].label} · {IMAGE_FORMATS[key].aspectRatio}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
-              </div>
+              </select>
               <SubmitButton pendingLabel="Création… (≈ 30 s)">Créer {PROPOSALS_PER_BRIEF} propositions</SubmitButton>
             </div>
           </form>

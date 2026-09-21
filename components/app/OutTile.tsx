@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { Clock, Pin } from "lucide-react";
 import { Meta } from "@/components/ui";
-import { IMAGE_FORMATS, type ImageFormat } from "@/lib/brand-os";
+import { resolveFormat } from "@/lib/brand-os";
 import { outImageUrl, type OutPayload } from "@/lib/outs";
 
 export type OutRow = { id: string; kind: string; status: string; created_at: string; payload: OutPayload | null };
 
 const DATE = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
 
+/** Custom formats carry their own label; catalogue ones are looked up (older creations included). */
 export function formatLabel(payload: OutPayload | null): string {
-  const format = payload?.format as ImageFormat | undefined;
-  return format && IMAGE_FORMATS[format] ? IMAGE_FORMATS[format].label : "Social 1:1";
+  return payload?.format_label || resolveFormat(payload?.format).label;
 }
 
 /** Une création épinglée au mur : l'image d'abord, l'annotation en mono dessous. */

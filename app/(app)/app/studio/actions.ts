@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { archiveAsset, getAsset, registerAsset } from "@/lib/assets";
-import { IMAGE_FORMATS, OFFERED_FORMATS, type ImageFormat } from "@/lib/brand-os";
+import { OFFERED_FORMATS, resolveFormat, type CustomFormat, type ImageFormat } from "@/lib/brand-os";
 import { queueImageGeneration, queueProposals } from "@/lib/jobs/engine";
 import { outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -18,9 +18,13 @@ async function activeBrand() {
   return { brand, userId };
 }
 
-function offeredFormat(value: FormDataEntryValue | null): ImageFormat {
-  const key = String(value || "");
-  return (OFFERED_FORMATS as string[]).includes(key) ? (key as ImageFormat) : "social_square";
+/** A catalogue format, or "custom" with the ratio and the medium the user described. Anything else falls back to the square post. */
+function requestedFormat(formData: FormData): { format: ImageFormat; custom: CustomFormat | null } {
+  const key = String(formData.get("format") || "");
+  if (key === "custom") {
+    return { format: "custom", custom: { aspectRatio: String(formData.get("customRatio") || ""), use: String(formData.get("customUse") || "") } };
+  }
+  return { format: (OFFERED_FORMATS as string[]).includes(key) ? (key as ImageFormat) : "social_square", custom: null };
 }
 
 /**
@@ -38,7 +42,7 @@ export async function createProposals(formData: FormData) {
     brandId: brand.id,
     userId,
     brief,
-    format: offeredFormat(formData.get("format")),
+    ...requestedFormat(formData),
     referenceUrl: asset?.url ?? null,
     subject: asset?.label ?? null,
     mode: asset ? "restage" : "describe",
@@ -59,7 +63,9 @@ export async function retouch(formData: FormData) {
   const source = outImageUrl(payload);
   if (!out || !source) redirect("/app/studio");
 
-  const format = payload?.format && payload.format in IMAGE_FORMATS ? (payload.format as ImageFormat) : "social_square";
+  // Same format as the image being fixed — including a custom one, rebuilt from what was stored with it.
+  const format: ImageFormat = payload?.format === "custom" ? "custom" : resolveFormat(payload?.format).key;
+  const custom = format === "custom" ? { aspectRatio: payload?.aspect_ratio ?? "", use: (payload?.format_label ?? "").split(" · ")[0] } : null;
   const batchId = crypto.randomUUID();
   await queueImageGeneration({
     orgId: brand.org_id,
@@ -67,6 +73,7 @@ export async function retouch(formData: FormData) {
     userId,
     brief: payload?.brief ?? null,
     format,
+    custom,
     mode: "retouch",
     referenceUrl: source,
     instruction,

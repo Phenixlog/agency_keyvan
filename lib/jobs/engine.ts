@@ -1,10 +1,11 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchTaskResult, hashForFilename, submitImageTask } from "@/lib/wavespeed";
 import {
-  IMAGE_FORMATS,
   composeImagePrompt,
   isBrandOS,
   normalizeMega,
+  resolveFormat,
+  type CustomFormat,
   type ImageFormat,
   type ImageMode,
 } from "@/lib/brand-os";
@@ -32,6 +33,8 @@ type GenerationArgs = {
   /** Creations made from the same click share a batch id: they are proposals of one brief. */
   batchId?: string | null;
   parentOutId?: string | null;
+  /** Ratio and medium when `format` is "custom". */
+  custom?: CustomFormat | null;
 };
 
 const POLL_INTERVAL_MS = 800;
@@ -57,7 +60,7 @@ export async function queueImageGeneration(
   args: GenerationArgs & { format: ImageFormat }
 ): Promise<{ jobId: string }> {
   const supabase = await createSupabaseServerClient();
-  const format = IMAGE_FORMATS[args.format];
+  const format = resolveFormat(args.format, args.custom);
   const mode: ImageMode = args.referenceUrl ? (args.mode === "retouch" ? "retouch" : "restage") : "describe";
 
   // Fetch latest OS + Mega
@@ -84,7 +87,8 @@ export async function queueImageGeneration(
     summary: os?.summary || "",
     mega: normalizeMega(mega?.content),
     brief: args.brief,
-    format: args.format,
+    format: format.key,
+    direction: format.direction,
     mode,
     subject: args.subject,
     instruction: args.instruction,
@@ -164,7 +168,10 @@ export async function queueImageGeneration(
     // Insert out (draft)
     const payload = {
       kind: format.kind,
-      format: args.format,
+      format: format.key,
+      // Kept with the image so it can be labelled and retouched later, even for a custom format.
+      format_label: format.label,
+      aspect_ratio: format.aspectRatio,
       brief: args.brief?.trim() || null,
       // Where this image comes from: shown in the Studio ("d'où vient cette image").
       mode,

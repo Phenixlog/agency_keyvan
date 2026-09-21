@@ -15,6 +15,8 @@ export type OutPayload = {
   storage_path?: string | null;
   brief?: string | null;
   format?: string | null;
+  format_label?: string | null;
+  aspect_ratio?: string | null;
   prompt?: string | null;
   mode?: "describe" | "restage" | "retouch" | null;
   subject?: string | null;

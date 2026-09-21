@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { toDay, upcomingEntries, CHANNELS } from "@/lib/calendar";
-import { IMAGE_FORMATS, type ImageFormat } from "@/lib/brand-os";
+import { resolveFormat } from "@/lib/brand-os";
 import { MAX_ANSWER_TOKENS, MAX_MESSAGE_CHARS, MODEL_CHAT, buildExpertSystem, parseProposal, sanitizeHistory, saveExchange, splitAnswer } from "@/lib/expert";
 import { outImageUrl, type OutPayload } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       const payload = out.payload as OutPayload | null;
       return {
         status: STATUS_LABEL[out.status as string] ?? String(out.status),
-        format: IMAGE_FORMATS[payload?.format as ImageFormat]?.label ?? "Social 1:1",
+        format: payload?.format_label || resolveFormat(payload?.format).label,
         brief: payload?.brief ?? null,
         day: String(out.created_at).slice(0, 10),
       };

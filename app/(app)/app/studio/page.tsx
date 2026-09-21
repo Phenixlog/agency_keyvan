@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Archive, ArchiveRestore, CalendarPlus, Clock, Download, ImageOff, MessageSquareText, Pin, Wand2 } from "lucide-react";
+import { formatLabel } from "@/components/app/OutTile";
 import { AssetUploader } from "@/components/studio/AssetUploader";
+import { FormatPicker } from "@/components/studio/FormatPicker";
 import { BrandCard, ButtonLink, Card, CardHeader, Empty, Field, Input, Meta, Notice, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { ASSET_KINDS, listAssets } from "@/lib/assets";
-import { IMAGE_FORMATS, OFFERED_FORMATS, type ImageFormat } from "@/lib/brand-os";
+import { ASPECT_RATIOS, FORMAT_FAMILIES, IMAGE_FORMATS, OFFERED_FORMATS } from "@/lib/brand-os";
 import { PROPOSALS_PER_BRIEF } from "@/lib/jobs/engine";
 import { outImageUrl, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -129,19 +131,15 @@ export default async function StudioPage({
                   <Textarea name="brief" rows={3} maxLength={800} defaultValue={suggestedBrief?.slice(0, 800) ?? ""} placeholder="Un bol fumant sur une table en bois, lumière du matin…" />
                 </Field>
 
-                <fieldset className="grid gap-2">
-                  <legend className="mb-2 text-small font-semibold text-ink">Format</legend>
-                  <div className="flex flex-wrap gap-2">
-                    {OFFERED_FORMATS.map((key, index) => (
-                      <label key={key} className="cursor-pointer">
-                        <input type="radio" name="format" value={key} defaultChecked={index === 0} className="peer sr-only" />
-                        <span className="inline-flex rounded-pill bg-soft px-4 py-2 text-small text-mute transition duration-(--duration-fast) ease-cimaise peer-checked:bg-ink peer-checked:text-card peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink">
-                          {IMAGE_FORMATS[key].label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
+                <FormatPicker
+                  formats={OFFERED_FORMATS.map((key) => {
+                    const { label, hint, family, aspectRatio, resolution } = IMAGE_FORMATS[key];
+                    return { key, label, hint, family, aspectRatio, resolution };
+                  })}
+                  families={FORMAT_FAMILIES}
+                  ratios={ASPECT_RATIOS}
+                  defaultFormat="social_square"
+                />
 
                 <fieldset className="grid gap-2">
                   <legend className="mb-2 text-small font-semibold text-ink">Partir d’un vrai produit</legend>
@@ -209,7 +207,7 @@ export default async function StudioPage({
                 const payload = out.payload as OutPayload | null;
                 const src = outImageUrl(payload);
                 const status = out.status as OutStatus;
-                const format = IMAGE_FORMATS[payload?.format as ImageFormat]?.label ?? "Carré 1:1";
+                const format = formatLabel(payload);
                 const highlighted = focus === out.id || (lot && payload?.batch_id === lot);
                 return (
                   <li key={out.id} id={out.id}>
