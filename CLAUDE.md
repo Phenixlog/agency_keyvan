@@ -40,10 +40,9 @@ Next.js **16.3.5** (App Router, `proxy.ts`, pas de `middleware.ts`) · React 19 
 - Ne jamais logger d'e-mail ni de mot de passe ; messages de login identiques pour « mauvais mot de passe » et « e-mail non confirmé » (anti-énumération).
 
 ## Current Focus (2026-09-21)
-Fait : sécurité (SSRF, proxy), auth réparée, moteur Brand OS par LLM, DA + tokens, cadre de l'app, Accueil, onboarding complet — parcours testé de bout en bout en local (création d'image réelle).
+Fait : sécurité (SSRF, proxy), auth réparée, moteur Brand OS par LLM, DA + tokens, et tous les écrans refaits sur la DA : landing, login, onboarding (6 étapes), Accueil, Marque, Créer, Studio, Calendrier, Expert. Parcours onboarding → création → studio → marque testé de bout en bout en local avec une vraie image.
 
-Reste, dans l'ordre :
-1. Refonte sur la DA : **Marque** (édition structurée + « relancer l'analyse » → nouvelle version), **Créer** (sélecteur de format social / ratio A4 / ratio A3), **Studio** (garder, archiver, remarque → règle, re-générer), puis login et landing (encore en style scaffold `zinc-*`).
-2. Nouveaux modules : **Calendrier** éditorial (table + migration, planifier les créations gardées, pas de publication auto), **Expert** (playbooks tirés du Brand OS).
-3. `OPENROUTER_API_KEY` n'est pas encore configurée (Railway + `.env.local`) : tout tourne en mode repli. L'analyse LLM n'a jamais été exécutée avec une vraie clé.
-4. À surveiller : bucket Storage `outs` public (URLs non devinables mais lisibles par tous) ; alias CSS hérités (`paper`, `accent`) à retirer une fois tous les écrans migrés.
+Reste :
+1. **Migration `0004_calendar_playbooks.sql`** : les tables existent en prod mais les écritures étaient refusées par la RLS (42501) ; le fichier a été corrigé (politiques via `is_org_member()`), Keyvan doit le **rejouer en entier** dans Supabase → SQL Editor (le dernier `select` doit renvoyer 8 lignes). Puis tester : planifier une publication, marquer publiée, retirer.
+2. **`OPENROUTER_API_KEY`** non configurée (Railway + `.env.local`) : tout tourne en mode repli. Jamais exécutés avec une vraie clé : analyse de marque, prompt d'image par LLM, fusion des règles, playbooks Expert, légendes du calendrier. À tester dès que la clé est là, en commençant par « Relancer l'analyse » sur la marque de test.
+3. À surveiller : bucket Storage `outs` public (URLs non devinables mais lisibles par tous) ; marque « [TEST] Atelier Lune » à archiver dans le compte de Keyvan (pas d'écran de suppression de marque).

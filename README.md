@@ -70,9 +70,12 @@ Aucune chrome avant OB‑06.
 - `/` · Landing (CTA contextuel selon session)
 - `/onboarding/*` · OB‑01 → OB‑06
 - `/app` · Chrome: Marque · Créer · Studio · Calendrier · Expert + sélecteur de marque
-- `/app/marque` · Lit Brand OS + Mega pour la marque active, historique versions, édition légère (crée nouvelles versions)
-- `/app/creer` · Choisit Social/Print (print en stub), brief NL, lance génération, affiche progression
-- `/app/studio` · Liste les `outs` de la marque: aperçu, Garder/Archiver, feedback NL (méga++), re‑gen
+- `/app/marque` · Brand OS structuré, couleur de marque (reteinte l’atelier), résumé éditable (nouvelle version), règles apprises (retrait), relance de l’analyse, historique
+- `/app` · Accueil : marque active, promesse et ton, dernières créations, prochaines publications, règles apprises
+- `/app/creer` · Format (social 1:1, affiche ratio A4 / A3), brief, création synchrone avec état d’attente, résultat + Garder
+- `/app/studio` · Créations par vue (en cours, gardées, brouillons, archives) : Garder, Archiver/Restaurer, Recréer ; une remarque devient une règle de marque
+- `/app/calendrier` · Planning éditorial : grille mensuelle, planification d’une création gardée (date, canal, légende), légende rédigée par LLM, statut publiée ; aucune publication automatique
+- `/app/expert` · Trois guides tirés du Brand OS (ligne éditoriale, voix, brief visuel) ; chaque scène du brief visuel s’ouvre dans Créer
 
 ## Dossiers
 - `app/` · App Router Next.js
@@ -85,6 +88,7 @@ Aucune chrome avant OB‑06.
 - `supabase/migrations/0001_init.sql` · schéma principal (RLS multi‑tenant)
 - `supabase/migrations/0002_storage_outs.sql` · bucket Storage `outs` + politiques
 - `supabase/migrations/0003_fix_org_members_rls.sql` · helpers `is_org_member`/`is_org_admin` (SECURITY DEFINER) et nouvelles policies `org_members` pour éviter la récursion RLS
+- `supabase/migrations/0004_calendar_playbooks.sql` · tables `calendar_entries` et `playbooks`, RLS via `is_org_member()`. Rejouable en entier ; se termine par un contrôle qui doit renvoyer 8 politiques. Tant qu’elle n’est pas appliquée, Calendrier et Expert affichent un bandeau au lieu de planter.
 
 > Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 

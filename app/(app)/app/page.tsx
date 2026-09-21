@@ -1,15 +1,20 @@
 import { ArrowUpRight, Plus } from "lucide-react";
-import { BrandCard, ButtonLink, Card, CardHeader, Empty, Meta, VersionTag } from "@/components/ui";
+import { BrandCard, ButtonLink, Card, CardHeader, Empty, Meta, Tag, VersionTag } from "@/components/ui";
 import { OutTile, type OutRow } from "@/components/app/OutTile";
+import { CHANNELS, toDay, upcomingEntries } from "@/lib/calendar";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
 
 const RECENT_OUTS = 4;
+const UPCOMING = 3;
 const MAX_RULES = 12;
 const TODAY = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 const SHORT_DATE = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+// Calendar days are dates, not instants: format in UTC so no time zone shifts them.
+const DAY_NUMBER = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", timeZone: "UTC" });
+const DAY_MONTH = new Intl.DateTimeFormat("fr-FR", { month: "short", timeZone: "UTC" });
 
 export default async function AppHome() {
   const { brand, brands, os, mega } = await getWorkspace();
@@ -38,6 +43,7 @@ export default async function AppHome() {
     .neq("status", "archived")
     .order("created_at", { ascending: false })
     .limit(RECENT_OUTS);
+  const upcoming = await upcomingEntries(brand.id, toDay(new Date()), UPCOMING);
 
   const today = TODAY.format(new Date());
   const rules = mega?.rules ?? [];
@@ -116,7 +122,37 @@ export default async function AppHome() {
           )}
         </Card>
 
-        <Card className="lg:col-span-12">
+        <Card className="lg:col-span-5">
+          <CardHeader
+            title="Prochaines publications"
+            aside={
+              <ButtonLink href="/app/calendrier" variant="ghost">
+                Calendrier <ArrowUpRight size={18} strokeWidth={1.75} />
+              </ButtonLink>
+            }
+          />
+          {upcoming.length ? (
+            <ul>
+              {upcoming.map((entry) => {
+                const date = new Date(`${entry.scheduled_on}T00:00:00Z`);
+                return (
+                  <li key={entry.id} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-4 border-t border-line py-3 first:border-t-0 first:pt-0">
+                    <span className="grid justify-items-center rounded-inner bg-tint py-2 transition-colors duration-(--duration-retint) ease-cimaise">
+                      <Meta className="uppercase">{DAY_MONTH.format(date)}</Meta>
+                      <span className="font-display text-h2 font-normal leading-none text-ink">{DAY_NUMBER.format(date)}</span>
+                    </span>
+                    <span className="truncate text-small text-ink">{entry.caption || entry.out?.payload?.brief || "Idée de publication"}</span>
+                    <Tag>{CHANNELS[entry.channel]}</Tag>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-small text-mute">Rien de planifié. Les créations gardées se planifient dans le Calendrier.</p>
+          )}
+        </Card>
+
+        <Card className="lg:col-span-7">
           <CardHeader
             title="Ce que l’atelier a appris"
             aside={
@@ -129,9 +165,9 @@ export default async function AppHome() {
             }
           />
           {rules.length ? (
-            <ul className="grid gap-x-8 md:grid-cols-2">
+            <ul>
               {rules.map((rule, index) => (
-                <li key={rule} className="flex items-baseline gap-4 border-t border-line py-4 text-body first:border-t-0 md:[&:nth-child(2)]:border-t-0">
+                <li key={rule} className="flex items-baseline gap-4 border-t border-line py-3 text-body first:border-t-0 first:pt-0">
                   <Meta>{String(index + 1).padStart(2, "0")}</Meta>
                   <span>{rule}</span>
                 </li>

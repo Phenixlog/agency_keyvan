@@ -24,7 +24,7 @@ export function BrandCard({ className, children, ...props }: ComponentProps<"sec
       {...props}
     >
       <span aria-hidden className="hatch pointer-events-none absolute -bottom-10 -right-10 size-60 rounded-full opacity-15" />
-      <div className="relative">{children}</div>
+      <div className="relative h-full">{children}</div>
     </section>
   );
 }

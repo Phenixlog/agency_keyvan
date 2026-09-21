@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
 const MAX_BRIEF = 800;
 const FORMATS = Object.entries(IMAGE_FORMATS) as [ImageFormat, (typeof IMAGE_FORMATS)[ImageFormat]][];
 
-export default async function CreerPage({ searchParams }: { searchParams: Promise<{ job?: string }> }) {
+export default async function CreerPage({ searchParams }: { searchParams: Promise<{ job?: string; brief?: string }> }) {
   const { brand, os, mega } = await getWorkspace();
-  const { job: jobId } = await searchParams;
+  const { job: jobId, brief: suggestedBrief } = await searchParams;
 
   if (!brand) {
     return (
@@ -85,7 +85,7 @@ export default async function CreerPage({ searchParams }: { searchParams: Promis
             </fieldset>
 
             <Field label="Brief" hint="Facultatif. Une scène, un objet, une situation. Sans brief, Brand OS illustre la promesse de la marque.">
-              <Textarea name="brief" rows={4} maxLength={MAX_BRIEF} placeholder="Un bol fumant sur une table en bois, lumière du matin…" />
+              <Textarea name="brief" rows={4} maxLength={MAX_BRIEF} defaultValue={suggestedBrief?.slice(0, MAX_BRIEF) ?? ""} placeholder="Un bol fumant sur une table en bois, lumière du matin…" />
             </Field>
 
             <SubmitButton pendingLabel="Création en cours… (≈ 20 s)" className="justify-self-start">

@@ -60,12 +60,6 @@
   --text-meta--letter-spacing: -0.01em;
 
   --ease-cimaise: cubic-bezier(0.2, 0, 0, 1);
-
-  /* Alias hérités du scaffold, retirés écran par écran pendant la refonte. */
-  --color-paper: #E4E0D6;
-  --color-accent: #1A1815;
-  --color-background: #E4E0D6;
-  --color-foreground: #1A1815;
 }
 
 /*
