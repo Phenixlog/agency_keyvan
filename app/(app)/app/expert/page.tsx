@@ -48,11 +48,12 @@ export default async function ExpertPage() {
             Brand OS v{os.version} · {rules} règle{rules > 1 ? "s" : ""} apprise{rules > 1 ? "s" : ""}
           </span>
           <p className="max-w-[46ch] font-display text-h1">
-            Un directeur de création qui connaît cette marque par cœur. Parlez-lui normalement.
+            L’expertise derrière ce client. Dites ce qui ne va pas : il ajuste la marque.
           </p>
           <p className="max-w-prose text-small opacity-80">
-            Il a sous les yeux son Brand OS, les règles que vous lui avez apprises, vos créations gardées et votre planning. Chaque
-            marque a son expert et sa conversation : changez de marque, vous changez d’interlocuteur.
+            Il regarde les dernières créations, les compare au Brand OS, réfléchit stratégie avec vous, puis propose un changement
+            précis. Vous validez d’un clic, et tous les contenus suivants de ce client en tiennent compte. Rien n’est appliqué sans
+            vous, et chaque changement crée une nouvelle version.
           </p>
         </div>
       </BrandCard>
@@ -63,7 +64,7 @@ export default async function ExpertPage() {
       {!thread.persisted ? (
         <Notice tone="warning">
           La conversation fonctionne, mais ne sera pas mémorisée tant que la base n’est pas à jour : rejouez{" "}
-          <code className="font-mono text-meta">supabase/migrations/0004_calendar_expert.sql</code> dans Supabase → SQL Editor.
+          <code className="font-mono text-meta">supabase/migrations/0004_calendar_expert.sql</code> dans Supabase → SQL Editor. Les changements que vous appliquez, eux, sont bien enregistrés.
         </Notice>
       ) : null}
 
@@ -82,8 +83,17 @@ export default async function ExpertPage() {
             )
           }
         />
-        {/* key: switching brand must never show the previous brand's conversation */}
-        <ExpertChat key={brand.id} brandName={brand.name} initialMessages={thread.messages} />
+        {/* key: another brand, or a new version of this one, must restart from the server's state */}
+        <ExpertChat
+          // Persisted thread: the server is the truth, remount on any change. Otherwise the conversation
+          // only lives in the browser, so a remount would erase it: key on the brand alone.
+          key={thread.persisted ? `${brand.id}-${os.version}-${mega?.version ?? 0}-${thread.messages.length}` : brand.id}
+          persisted={thread.persisted}
+          brandName={brand.name}
+          initialMessages={thread.messages}
+          os={os.canon}
+          mega={{ intro: mega?.intro ?? "", rules: mega?.rules ?? [] }}
+        />
       </Card>
     </>
   );

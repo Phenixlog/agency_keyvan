@@ -76,7 +76,7 @@ Aucune chrome avant OB‑06.
 - `/app/creer` · Format (social 1:1, affiche ratio A4 / A3), brief, création synchrone avec état d’attente, résultat + Garder
 - `/app/studio` · Créations par vue (en cours, gardées, brouillons, archives) : Garder, Archiver/Restaurer, Recréer ; une remarque devient une règle de marque
 - `/app/calendrier` · Planning éditorial : grille mensuelle, planification d’une création gardée (date, canal, légende), légende rédigée par LLM, statut publiée ; aucune publication automatique
-- `/app/expert` · Chat avec l’expert de la marque active (un interlocuteur et une conversation par marque) : il connaît le Brand OS, les règles apprises, les créations gardées et le planning ; réponse en streaming ; chaque ligne « Brief : … » s’ouvre dans Créer
+- `/app/expert` · **Poste de pilotage de la marque**, en langage naturel : l’expert (marketing + DA) regarde les dernières créations **en image**, les compare au Brand OS, discute stratégie, puis propose un changement du Brand OS et/ou du mega‑prompt, affiché avant → après. « Appliquer » crée une nouvelle version ; tous les contenus suivants en tiennent compte. Il ne produit pas de contenu (c’est le rôle de Créer).
 
 ## Dossiers
 - `app/` · App Router Next.js
@@ -89,7 +89,7 @@ Aucune chrome avant OB‑06.
 - `supabase/migrations/0001_init.sql` · schéma principal (RLS multi‑tenant)
 - `supabase/migrations/0002_storage_outs.sql` · bucket Storage `outs` + politiques
 - `supabase/migrations/0003_fix_org_members_rls.sql` · helpers `is_org_member`/`is_org_admin` (SECURITY DEFINER) et nouvelles policies `org_members` pour éviter la récursion RLS
-- `supabase/migrations/0004_calendar_expert.sql` · tables `calendar_entries` et `expert_messages`, RLS via sa propre fonction `is_active_org_member()` (ne dépend pas de `is_org_member`, dont la signature varie selon les environnements). Rejouable en entier ; se termine par un contrôle qui doit renvoyer 7 politiques. Tant qu’elle n’est pas appliquée, le Calendrier affiche un bandeau et l’expert répond sans mémoriser la conversation.
+- `supabase/migrations/0004_calendar_expert.sql` · tables `calendar_entries` et `expert_messages`, RLS via sa propre fonction `is_active_org_member()` (ne dépend pas de `is_org_member`, dont la signature varie selon les environnements). Rejouable en entier ; se termine par un contrôle qui doit renvoyer 8 politiques. Tant qu’elle n’est pas appliquée, le Calendrier affiche un bandeau et l’expert fonctionne (ses changements sont enregistrés) sans mémoriser la conversation.
 
 > Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 

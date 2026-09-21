@@ -24,7 +24,8 @@ create index if not exists calendar_entries_brand_day_idx on public.calendar_ent
 create index if not exists calendar_entries_org_idx on public.calendar_entries (org_id);
 
 -- ---------------------------------------------------------------------------
--- Expert : une conversation continue par marque. Chaque message est une ligne, jamais modifiée.
+-- Expert : une conversation continue par marque. Le texte d'un message ne change jamais ;
+-- seul l'état de sa proposition évolue (en attente → appliquée ou écartée).
 -- ---------------------------------------------------------------------------
 create table if not exists public.expert_messages (
   id uuid primary key default gen_random_uuid(),
@@ -32,9 +33,16 @@ create table if not exists public.expert_messages (
   brand_id uuid not null references public.brands(id) on delete cascade,
   role text not null check (role in ('user','assistant')),
   content text not null,
+  -- Changement du Brand OS / mega-prompt proposé par l'expert dans ce message, et ce qu'on en a fait.
+  proposal jsonb,
+  proposal_state text check (proposal_state in ('pending','applied','dismissed')),
   created_by uuid,
   created_at timestamptz not null default now()
 );
+-- Si la table vient d'une version antérieure de ce fichier :
+alter table public.expert_messages add column if not exists proposal jsonb;
+alter table public.expert_messages add column if not exists proposal_state text
+  check (proposal_state in ('pending','applied','dismissed'));
 create index if not exists expert_messages_brand_time_idx on public.expert_messages (brand_id, created_at);
 
 -- Une première version de cette migration créait une table « playbooks », restée vide et
@@ -73,7 +81,7 @@ alter table public.calendar_entries enable row level security;
 alter table public.expert_messages enable row level security;
 
 grant select, insert, update, delete on public.calendar_entries to authenticated;
-grant select, insert, delete on public.expert_messages to authenticated;
+grant select, insert, update, delete on public.expert_messages to authenticated;
 
 drop policy if exists calendar_entries_select_member on public.calendar_entries;
 create policy calendar_entries_select_member on public.calendar_entries for select
@@ -100,11 +108,16 @@ drop policy if exists expert_messages_insert_member on public.expert_messages;
 create policy expert_messages_insert_member on public.expert_messages for insert
 with check (public.is_active_org_member(expert_messages.org_id));
 
+drop policy if exists expert_messages_update_member on public.expert_messages;
+create policy expert_messages_update_member on public.expert_messages for update
+using (public.is_active_org_member(expert_messages.org_id))
+with check (public.is_active_org_member(expert_messages.org_id));
+
 drop policy if exists expert_messages_delete_member on public.expert_messages;
 create policy expert_messages_delete_member on public.expert_messages for delete
 using (public.is_active_org_member(expert_messages.org_id));
 
--- Contrôle : doit renvoyer 7 lignes (4 politiques pour calendar_entries, 3 pour expert_messages).
+-- Contrôle : doit renvoyer 8 lignes (4 politiques par table).
 select tablename, policyname, cmd from pg_policies
 where schemaname = 'public' and tablename in ('calendar_entries', 'expert_messages')
 order by tablename, cmd;

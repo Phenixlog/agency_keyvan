@@ -16,6 +16,15 @@ export type BrandOS = {
     mood: string;
     avoid: string[];
   };
+  /** Décisions marketing prises avec l'expert. Absent tant qu'on n'en a pas parlé. */
+  strategy?: BrandStrategy;
+};
+
+export type BrandStrategy = {
+  objectives: string[];
+  channels: string[];
+  angles: string[];
+  rhythm: string;
 };
 
 export type MegaPrompt = {
@@ -196,6 +205,12 @@ export function renderSummary(os: BrandOS): string {
     line("Ton", os.tone.join(", ")),
     line("Piliers", os.pillars.join(" · ")),
     line("Direction visuelle", [os.visual.style, os.visual.mood].filter(Boolean).join(" — ")),
+    line("Palette", os.visual.palette.join(", ")),
+    line("À éviter", os.visual.avoid.join(", ")),
+    line("Objectifs", os.strategy?.objectives.join(" · ") ?? ""),
+    line("Canaux", os.strategy?.channels.join(", ") ?? ""),
+    line("Angles", os.strategy?.angles.join(" · ") ?? ""),
+    line("Rythme", os.strategy?.rhythm ?? ""),
   ]
     .filter(Boolean)
     .join("\n");

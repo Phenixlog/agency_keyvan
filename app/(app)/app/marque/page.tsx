@@ -153,6 +153,36 @@ export default async function MarquePage({ searchParams }: { searchParams: Promi
           </dl>
         </Card>
 
+        <Card className="lg:col-span-12">
+          <CardHeader
+            title="Stratégie"
+            aside={
+              <ButtonLink href="/app/expert" variant="ghost">
+                En parler à l’expert
+              </ButtonLink>
+            }
+          />
+          {canon?.strategy ? (
+            <dl className="grid gap-x-8 md:grid-cols-2">
+              {[
+                ["Objectifs", canon.strategy.objectives.join(" · ")],
+                ["Canaux", canon.strategy.channels.join(" · ")],
+                ["Angles", canon.strategy.angles.join(" · ")],
+                ["Rythme", canon.strategy.rhythm],
+              ].map(([term, value]) => (
+                <div key={term} className="border-t border-line py-3">
+                  <dt><Meta>{term}</Meta></dt>
+                  <dd className="text-body text-ink">{value || "À préciser"}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="text-small text-mute">
+              Pas encore de stratégie posée. Elle se décide en discutant avec l’expert : objectifs, canaux, angles, rythme.
+            </p>
+          )}
+        </Card>
+
         <Card className="lg:col-span-5">
           <CardHeader title="Couleur de la marque" aside={<Meta>{brandColor}</Meta>} />
           <p className="text-small text-mute">

@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildBrandOS, isBrandOS, normalizeMega, renderSummary, type BrandOS, type MegaPrompt } from "@/lib/brand-os";
+import { applyToBrandOS, applyToMega, describeChanges, touches, type Proposal } from "@/lib/expert/proposal";
 import { extractUrl, scrapeUrl } from "@/lib/onboarding";
 
 /**
@@ -145,4 +146,51 @@ export async function rebuildBrandOS(args: { brandId: string; orgId: string; use
     note: "Analyse relancée",
   });
   return "llm" as const;
+}
+
+/**
+ * Applique une proposition de l'expert, déjà validée par parseProposal() : une nouvelle version du
+ * Brand OS et/ou du mega-prompt, jamais une réécriture. Le résumé lisible est régénéré depuis la
+ * structure pour que les deux ne divergent pas.
+ */
+export async function applyExpertProposal(args: {
+  brandId: string;
+  orgId: string;
+  userId: string;
+  proposal: Proposal;
+}): Promise<{ status: "applied"; osVersion: number | null; megaVersion: number | null } | { status: "nothing-to-change" | "no-brand-os" }> {
+  const supabase = await createSupabaseServerClient();
+  const [os, mega] = await Promise.all([latestOS(supabase, args.brandId), latestMega(supabase, args.brandId)]);
+  if (!os || !isBrandOS(os.canon)) return { status: "no-brand-os" };
+
+  const currentMega = normalizeMega(mega?.content);
+  if (describeChanges(os.canon, currentMega, args.proposal).length === 0) return { status: "nothing-to-change" };
+
+  const target = touches(args.proposal);
+  let osVersion: number | null = null;
+  let megaVersion: number | null = null;
+
+  if (target.brandOS) {
+    const canon = applyToBrandOS(os.canon, args.proposal);
+    const version = os.version + 1;
+    osVersion = version;
+    await insertOS(supabase, {
+      ...args,
+      version,
+      summary: renderSummary(canon),
+      canon: { ...canon, generated_by: "expert", change: args.proposal.title },
+    });
+  }
+  if (target.mega) {
+    const next = applyToMega(currentMega, args.proposal);
+    megaVersion = (mega?.version ?? 0) + 1;
+    await insertMega(supabase, {
+      ...args,
+      previous: currentMega,
+      previousVersion: mega?.version ?? 0,
+      next: { intro: next.intro, rules: next.rules },
+      note: `Expert : ${args.proposal.title}`,
+    });
+  }
+  return { status: "applied", osVersion, megaVersion };
 }
