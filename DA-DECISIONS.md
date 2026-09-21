@@ -9,7 +9,6 @@ Une ligne par décision **validée par Keyvan**. Méthode : skill `brand-da` (br
 | 2026-09-21 | Émotion cible en 3 s : « atelier vivant » — chaleureux, tactile, en cours de fabrication. |
 | 2026-09-21 | Anti-modèle : les dashboards IA (dégradés violets, étincelles, promesse magique interchangeable). |
 | 2026-09-21 | Contraintes : aucun logo existant (à créer) · mode clair uniquement · le nom « Brand OS » est un nom de travail, la DA ne repose pas dessus. |
-
 | 2026-09-21 | Références fournies par Keyvan : 5 dashboards « bento » (conteneur flottant arrondi sur fond teinté, nav en pilules ou rail d'icônes, noir + 1 accent, grands rayons, surfaces tonales sans ombre, une carte héros accent). Le brief est amendé : la grammaire du cadre vient de là ; « l'atelier vivant » passe par le contenu (créations épinglées, versions, règles apprises), pas par de la texture. |
 
 ## Règles dérivées (à confirmer avec la direction choisie)
