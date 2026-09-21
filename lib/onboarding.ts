@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { BlockedUrlError, safeFetchText } from "@/lib/safe-fetch";
+import { buildBrandOS, renderSummary, type MegaPrompt } from "@/lib/brand-os";
 
 export type OnboardingSession = {
   id: string;
@@ -102,108 +103,63 @@ export async function ensureDraftOSAndMega(args: {
   corpusOrSeed: string;
 }) {
   const supabase = await createSupabaseServerClient();
-  // Create v1 draft Brand OS summary (3-5 bullets) and mega prompt
-  const bullets = draftBullets(args.corpusOrSeed);
-  const summary = bullets.join("\n");
-  const canon = { bullets };
 
-  // Brand OS v1
-  const { data: osV1, error: osErr } = await supabase
+  // The analysis costs an LLM call: never redo it when v1 already exists (back button, double submit).
+  const { data: existing } = await supabase
     .from("brand_os_versions")
-    .insert({
-      org_id: args.orgId,
-      brand_id: args.brandId,
-      version: 1,
-      summary,
-      canon,
-      created_by: args.userId,
-    })
-    .select("*")
-    .single();
-  if (osErr && !String(osErr.message || "").includes("duplicate")) {
-    throw osErr;
-  }
+    .select("id")
+    .eq("brand_id", args.brandId)
+    .limit(1)
+    .maybeSingle();
+  if (existing) return;
 
-  // Mega prompt v1
-  const megaContent = { intro: draftMegaPrompt(args.corpusOrSeed) };
+  const { data: brand } = await supabase
+    .from("brands")
+    .select("name")
+    .eq("id", args.brandId)
+    .maybeSingle();
+  const { os, megaIntro, source } = await buildBrandOS({
+    source: args.corpusOrSeed,
+    nameHint: brand?.name ?? null,
+  });
+
+  const { error: osErr } = await supabase.from("brand_os_versions").insert({
+    org_id: args.orgId,
+    brand_id: args.brandId,
+    version: 1,
+    summary: renderSummary(os),
+    canon: { ...os, generated_by: source },
+    created_by: args.userId,
+  });
+  if (osErr) throw osErr;
+
+  const megaContent: MegaPrompt = { intro: megaIntro, rules: [], changelog: [] };
   const { error: mpErr } = await supabase.from("mega_prompts").insert({
     org_id: args.orgId,
     brand_id: args.brandId,
-    title: "Mega-prompt v1 (brouillon)",
+    title: "Mega-prompt v1",
     content: megaContent,
     version: 1,
     created_by: args.userId,
   });
-  if (mpErr && !String(mpErr.message || "").includes("duplicate")) {
-    throw mpErr;
+  if (mpErr) throw mpErr;
+
+  // The scraper only knows the hostname; the analysis usually finds the real brand name.
+  if (source === "llm" && os.name.trim()) {
+    await supabase.from("brands").update({ name: os.name.trim() }).eq("id", args.brandId);
   }
 }
 
-export async function updateOSAndMega(args: {
-  brandId: string;
-  summary: string;
-  bullets?: string[];
-}) {
+export async function updateOSAndMega(args: { brandId: string; summary: string }) {
   const supabase = await createSupabaseServerClient();
-  // Update latest version=1 for simplicity
-  await supabase
+  // The summary is the user-facing, editable truth. The structured canon and the
+  // mega-prompt stay: the image prompt composer reads the summary with priority.
+  const { error } = await supabase
     .from("brand_os_versions")
-    .update({
-      summary: args.summary,
-      canon: { bullets: args.bullets ?? args.summary.split("\n").slice(0, 5) },
-    })
+    .update({ summary: args.summary })
     .eq("brand_id", args.brandId)
     .eq("version", 1);
-  await supabase
-    .from("mega_prompts")
-    .update({
-      content: { intro: `OS confirmé:\n${args.summary}` },
-    })
-    .eq("brand_id", args.brandId)
-    .eq("version", 1);
-}
-
-export async function createStubJobsAndOuts(args: {
-  orgId: string;
-  brandId: string;
-  userId: string;
-}) {
-  const supabase = await createSupabaseServerClient();
-  const stubOuts = [
-    { kind: "social_post", payload: { text: "Post LinkedIn (stub)" } },
-    { kind: "print", payload: { headline: "Affiche (stub)" } },
-  ];
-  // Jobs
-  await supabase.from("jobs").insert([
-    {
-      org_id: args.orgId,
-      brand_id: args.brandId,
-      job_type: "creative_social",
-      prompt: "Générer posts social (stub)",
-      status: "succeeded",
-      created_by: args.userId,
-      output: { count: 1 },
-    },
-    {
-      org_id: args.orgId,
-      brand_id: args.brandId,
-      job_type: "creative_print",
-      prompt: "Générer print (stub)",
-      status: "succeeded",
-      created_by: args.userId,
-      output: { count: 1 },
-    },
-  ]);
-  // Outs (draft)
-  const inserts = stubOuts.map((o) => ({
-    org_id: args.orgId,
-    brand_id: args.brandId,
-    kind: o.kind,
-    payload: o.payload,
-    status: "draft",
-    created_by: args.userId,
-  }));
-  await supabase.from("outs").insert(inserts);
+  if (error) throw error;
 }
 
 export async function keepOut(outId: string) {
@@ -244,26 +200,6 @@ export async function scrapeUrl(url: string): Promise<string> {
     }
     return "";
   }
-}
-
-function draftBullets(source: string) {
-  const base = source.split(/[.!?\n]/).filter((s) => s.trim().length > 0);
-  const uniq = Array.from(new Set(base.map((s) => s.trim()))).slice(0, 5);
-  if (uniq.length === 0) {
-    return [
-      "Positionnement B2B orienté valeur produit.",
-      "Public cible: décideurs techniques et produit.",
-      "Promesse: clarté, vitesse, qualité.",
-    ];
-  }
-  return uniq.slice(0, 5).map((s) => `• ${s}`);
-}
-
-function draftMegaPrompt(source: string) {
-  return `Tu es un Brand OS pour une marque SaaS. À partir des éléments suivants, propose une communication claire et consistante.\n\nBase:\n${source.slice(
-    0,
-    2000
-  )}\n\nDonne des idées de slogan et un ton.`;
 }
 
 function deriveBrandName(seed?: string | null, url?: string | null) {

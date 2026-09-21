@@ -61,27 +61,20 @@ export default async function MarquePage({
     if (!summary) return;
     const { data: latestOs } = await supabase
       .from("brand_os_versions")
-      .select("version,org_id,brand_id")
+      .select("version,org_id,brand_id,canon")
       .eq("brand_id", brandId || "")
       .order("version", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const nextV = ((latestOs?.version as number | undefined) || 1) + 1;
-    const orgId = latestOs?.org_id;
+    const nextV = ((latestOs?.version as number | undefined) || 0) + 1;
+    // Keep the structured canon (visual direction feeds image prompts) and leave the
+    // mega-prompt alone: it is versioned on its own and holds the rules learned from feedback.
     await supabase.from("brand_os_versions").insert({
-      org_id: orgId || null,
+      org_id: latestOs?.org_id || null,
       brand_id: brandId,
       version: nextV,
       summary,
-      canon: { bullets: summary.split("\n").slice(0, 5) },
-      created_by: user.id,
-    });
-    await supabase.from("mega_prompts").insert({
-      org_id: orgId || null,
-      brand_id: brandId,
-      title: `Mega‑prompt v${nextV}`,
-      content: { intro: `OS confirmé:\n${summary}` },
-      version: nextV,
+      canon: latestOs?.canon ?? {},
       created_by: user.id,
     });
     redirect(`/app/marque?brand=${brandId}`);

@@ -23,6 +23,8 @@ Self-serve Brand OS — SaaS Lab (Sprint 1).
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `WAVESPEED_API_KEY` (obligatoire pour la génération d’images)
+   - `OPENROUTER_API_KEY` (analyse de marque, prompts d’image, apprentissage). Sans clé, tout retombe sur un repli déterministe : l’app fonctionne, le Brand OS est un brouillon à compléter.
+   - Optionnel: `OPENROUTER_MODEL_ANALYSIS` (défaut `anthropic/claude-sonnet-5`), `OPENROUTER_MODEL_FAST` (défaut `google/gemini-3.8-flash`)
    - Optionnel: `NEXT_PUBLIC_SITE_URL` (utilisé pour composer l’URL de rappel)
 
 Routes auth:
@@ -57,7 +59,7 @@ Routes auth:
 ## Tunnel Onboarding (écritures réelles)
 - OB‑01 — Intake: URL et/ou NL seed (+ notes). Crée/maj `onboarding_sessions` + brouillon `brands` lié à l’org de l’utilisateur.
 - OB‑02 — Lecture: fetch best‑effort serveur (timeouts, fallback NL‑only). Stocke corpus brut en JSONB. L’URL étant saisie par l’utilisateur, le fetch passe par `lib/safe-fetch.ts` (anti‑SSRF : http(s) et ports standard uniquement, adresses privées/loopback/metadata refusées au moment de la résolution DNS, redirections revalidées, taille plafonnée). Tests : `npm test`.
-- OB‑03 — Construction: génère Brand OS (3–5 bullets) + amorce mega‑prompt (LLM si clé, sinon template déterministe). Persiste `brand_os_versions` v1 + `mega_prompts` v1.
+- OB‑03 — Construction: analyse LLM du corpus → Brand OS structuré (positionnement, cible, promesse, ton, piliers, direction visuelle) stocké dans `brand_os_versions.canon`, résumé lisible dans `summary`, consignes créatives dans `mega_prompts` v1. Une seule analyse par marque (idempotent).
 - OB‑04 — Soft confirm: utilisateur confirme/édite. Mise à jour Brand OS / mega.
 - OB‑05 — Preuve créa: lance une génération Social 1:1 réelle (WaveSpeed). Crée `jobs` (durable) + `outs` (URL WaveSpeed et/ou path Storage). Permet “Garder” ≥1 `out`. Feedback NL possible (soft bump du méga).
 - OB‑06 — Entrée BO: si ≥1 `out` gardé (ou OK explicite), redirige `/app/marque` et marque `onboarding_sessions` complété.
@@ -76,6 +78,8 @@ Aucune chrome avant OB‑06.
 - `app/` · App Router Next.js
 - `lib/supabase/` · helpers SSR/Browser Supabase
 - `lib/jobs/` · pipeline de génération (WaveSpeed) + persistance `jobs`/`outs`
+- `lib/brand-os/` · modèle Brand OS, schémas JSON, replis déterministes (`model.ts`, pur et testé) + orchestration LLM (`index.ts`)
+- `lib/llm/openrouter.ts` · client OpenRouter (sortie JSON stricte)
 - `docs/canon/` · placeholder pour le canon (à coller)
 - `docs/ADR-001-stack.md` · décision stack
 - `supabase/migrations/0001_init.sql` · schéma principal (RLS multi‑tenant)
@@ -87,10 +91,10 @@ Aucune chrome avant OB‑06.
 ## Génération (WaveSpeed) & Apprentissage
 - Clé requise: `WAVESPEED_API_KEY` (Railway: variable déjà configurée en staging).
 - Modèle: `wavespeed-ai/z-image/turbo` (API REST v3).
-- Le prompt Social est composé du dernier méga + Brand OS + codes de format (1:1).
+- Le modèle d’image reçoit une description d’image, pas de la stratégie : `composeImagePrompt()` (LLM rapide) transforme Brand OS + règles apprises + brief + format en prompt anglais. Formats : `social_square`, `print_a4`, `print_a3` (`lib/brand-os/model.ts`) — les formats print sont au ratio A, plafonnés à 1536 px (pas du 300 dpi).
 - Dégradation gracieuse: sans clé API, le job échoue proprement (message FR clair).
 - Les images sont soit stockées via URL (WaveSpeed CDN), soit répliquées dans Supabase Storage (`outs/brands/{brandId}/*.jpg`) si possible.
-- Feedback NL (OB‑05, Studio): crée une nouvelle version de `mega_prompts` (soft bump, changelog). Les générations suivantes lisent toujours la dernière version.
+- Feedback NL (OB‑05, Studio): le LLM fusionne le feedback dans la liste de règles (`mega_prompts.content.rules`, 12 max, sans doublon ni contradiction) et crée une nouvelle version avec changelog. Éditer le Brand OS ne touche jamais au mega‑prompt.
 
 ## Tests manuels
 1. Terminer l’OB (ou créer une marque de test).

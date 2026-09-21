@@ -1,10 +1,12 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { fetchTaskResult, hashForFilename, submitImageTask } from "@/lib/wavespeed";
 import {
-  buildSocialPrompt,
-  fetchTaskResult,
-  hashForFilename,
-  submitImageTask,
-} from "@/lib/wavespeed";
+  IMAGE_FORMATS,
+  composeImagePrompt,
+  isBrandOS,
+  normalizeMega,
+  type ImageFormat,
+} from "@/lib/brand-os";
 
 export type DbJobStatus =
   | "queued"
@@ -13,19 +15,28 @@ export type DbJobStatus =
   | "failed"
   | "canceled";
 
-export async function queueSocialGeneration(args: {
+type GenerationArgs = {
   orgId: string;
   brandId: string;
   userId: string;
   brief?: string | null;
-}): Promise<{ jobId: string }> {
+};
+
+export function queueSocialGeneration(args: GenerationArgs) {
+  return queueImageGeneration({ ...args, format: "social_square" });
+}
+
+export async function queueImageGeneration(
+  args: GenerationArgs & { format: ImageFormat }
+): Promise<{ jobId: string }> {
   const supabase = await createSupabaseServerClient();
+  const format = IMAGE_FORMATS[args.format];
 
   // Fetch latest OS + Mega
   const [{ data: os }, { data: mega }] = await Promise.all([
     supabase
       .from("brand_os_versions")
-      .select("version,summary")
+      .select("version,summary,canon")
       .eq("brand_id", args.brandId)
       .order("version", { ascending: false })
       .limit(1)
@@ -38,12 +49,14 @@ export async function queueSocialGeneration(args: {
       .limit(1)
       .maybeSingle(),
   ]);
-  const brandSummary = os?.summary || "";
-  const megaIntro = (mega?.content as any)?.intro || "";
-  const composedPrompt = buildSocialPrompt({
-    megaIntro,
-    brandSummary,
+  // The image model needs a description of a picture, not brand strategy:
+  // an LLM turns Brand OS + learned rules + brief into that description.
+  const composedPrompt = await composeImagePrompt({
+    os: isBrandOS(os?.canon) ? os.canon : null,
+    summary: os?.summary || "",
+    mega: normalizeMega(mega?.content),
     brief: args.brief,
+    format: args.format,
   });
 
   // Insert job as queued
@@ -52,7 +65,7 @@ export async function queueSocialGeneration(args: {
     .insert({
       org_id: args.orgId,
       brand_id: args.brandId,
-      job_type: "creative_social",
+      job_type: format.kind === "print" ? "creative_print" : "creative_social",
       prompt: composedPrompt,
       status: "queued",
       created_by: args.userId,
@@ -72,7 +85,7 @@ export async function queueSocialGeneration(args: {
     // Submit image generation task
     const taskId = await submitImageTask({
       prompt: composedPrompt,
-      size: "1024*1024",
+      size: format.size,
       output_format: "jpeg",
       seed: -1,
     });
@@ -99,7 +112,7 @@ export async function queueSocialGeneration(args: {
     // Try to upload into Supabase Storage "outs" (best effort); fallback to keeping external URL
     let storagePath: string | undefined;
     try {
-      const path = `brands/${args.brandId}/social-${hashForFilename(
+      const path = `brands/${args.brandId}/${args.format}-${hashForFilename(
         `${jobId}-${Date.now()}`
       )}.jpg`;
       const imgRes = await fetch(imageUrl, { cache: "no-store" });
@@ -118,8 +131,10 @@ export async function queueSocialGeneration(args: {
     }
 
     // Insert out (draft)
-    const payload: any = {
-      kind: "social_post",
+    const payload = {
+      kind: format.kind,
+      format: args.format,
+      brief: args.brief?.trim() || null,
       image_url: imageUrl,
       storage_path: storagePath || null,
       prompt: composedPrompt,
@@ -130,7 +145,7 @@ export async function queueSocialGeneration(args: {
       .insert({
         org_id: args.orgId,
         brand_id: args.brandId,
-        kind: "social_post",
+        kind: format.kind,
         payload,
         status: "draft",
         created_by: args.userId,
@@ -148,7 +163,7 @@ export async function queueSocialGeneration(args: {
         output: { out_id: out!.id, image_url: imageUrl, storage_path: storagePath || null },
       })
       .eq("id", jobId);
-  } catch (e: any) {
+  } catch (e: unknown) {
     const message =
       e instanceof Error ? e.message : typeof e === "string" ? e : "Erreur inconnue";
     await supabase

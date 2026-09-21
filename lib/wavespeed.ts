@@ -88,39 +88,6 @@ export async function fetchTaskResult(taskId: string): Promise<WaveSpeedResultRe
   return json;
 }
 
-export function buildSocialPrompt({
-  megaIntro,
-  brandSummary,
-  brief,
-}: {
-  megaIntro: string;
-  brandSummary: string;
-  brief?: string | null;
-}) {
-  // Format code: 1:1 Social Post (carré)
-  const formatSpec =
-    "Format: visuel social carré (1:1), adapté LinkedIn/Instagram. Haute lisibilité. Style cohérent marque. Pas de texte excessif si inutile.";
-  const parts = [
-    "Contexte Marque:",
-    brandSummary.trim(),
-    "",
-    "Mega-prompt:",
-    megaIntro.trim(),
-    "",
-    "Consigne de création d'image:",
-    formatSpec,
-  ];
-  if (brief && brief.trim()) {
-    parts.push("", "Brief utilisateur:", brief.trim());
-  }
-  // Image-only prompt for text-to-image model
-  const finalPrompt =
-    parts
-      .join("\n")
-      .slice(0, 4000) + "\nGénère une image qui exprime ce positionnement.";
-  return finalPrompt;
-}
-
 export function hashForFilename(input: string): string {
   return createHash("sha1").update(input).digest("hex").slice(0, 16);
 }

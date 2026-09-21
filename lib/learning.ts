@@ -1,43 +1,42 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { mergeFeedbackIntoRules, normalizeMega, type MegaPrompt } from "@/lib/brand-os";
 
 export async function bumpMegaPrompt(args: {
   brandId: string;
   userId: string;
   feedback: string;
 }) {
+  const feedback = (args.feedback || "").trim();
+  if (!feedback) return;
+
   const supabase = await createSupabaseServerClient();
-  // Read latest mega for versioning
   const { data: latest } = await supabase
     .from("mega_prompts")
-    .select("version,content,org_id,brand_id")
+    .select("version,content,org_id")
     .eq("brand_id", args.brandId)
     .order("version", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const nextVersion = (latest?.version || 1) + 1;
-  const content = latest?.content || {};
-  const changelogLine =
-    (args.feedback || "").trim().slice(0, 200) || "Ajustement NL mineur";
-  const newContent = {
-    ...content,
-    intro:
-      (content as any)?.intro
-        ? `${(content as any).intro}\n\n[REGLE] ${changelogLine}`
-        : `[REGLE] ${changelogLine}`,
+
+  const current = normalizeMega(latest?.content);
+  const nextVersion = (latest?.version || 0) + 1;
+  const { rules, note } = await mergeFeedbackIntoRules({ rules: current.rules, feedback });
+
+  const content: MegaPrompt = {
+    intro: current.intro,
+    rules,
     changelog: [
-      ...(Array.isArray((content as any)?.changelog)
-        ? (content as any).changelog
-        : []),
-      { v: nextVersion, note: changelogLine, at: new Date().toISOString() },
+      ...(current.changelog ?? []),
+      { v: nextVersion, note, at: new Date().toISOString() },
     ],
   };
-  await supabase.from("mega_prompts").insert({
+  const { error } = await supabase.from("mega_prompts").insert({
     org_id: latest?.org_id || null,
     brand_id: args.brandId,
     title: `Mega‑prompt v${nextVersion}`,
-    content: newContent,
+    content,
     version: nextVersion,
     created_by: args.userId,
   });
+  if (error) throw error;
 }
-
