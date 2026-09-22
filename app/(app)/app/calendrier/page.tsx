@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Ban, Check, ChevronLeft, ChevronRight, Download, MessageSquareText, PenLine, Sparkles, Trash2, Undo2, Wand2 } from "lucide-react";
+import { Ban, Check, ChevronLeft, ChevronRight, Download, ImageOff, MessageSquareText, PenLine, Settings2, Sparkles, Trash2, TextCursorInput, Undo2, Wand2 } from "lucide-react";
 import { MigrationNotice } from "@/components/app/MigrationNotice";
 import { CopyLink, CopyText } from "@/components/brand/BoardActions";
 import { CreationPicker } from "@/components/calendar/CreationPicker";
@@ -63,6 +63,7 @@ const NOTICES = {
 } as const;
 
 const EXPERT_RHYTHM = `/app/expert?message=${encodeURIComponent("Revoyons le rythme de publication de cette marque : quels canaux, et combien de publications par semaine sur chacun ?")}`;
+const ON_BRAND_BUTTON = "inline-flex items-center gap-2 rounded-pill bg-card px-4 py-2 text-small font-semibold text-ink transition duration-(--duration-fast) ease-cimaise hover:-translate-y-px";
 const SELECT = "w-full rounded-inner bg-soft px-4 py-3 text-body text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink";
 
 export default async function CalendrierPage({ searchParams }: { searchParams: Promise<{ mois?: string; ok?: string; creation?: string; jour?: string }> }) {
@@ -143,12 +144,27 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
                     {CHANNELS[upcoming.channel]}
                     {upcoming.angle ? ` · ${upcoming.angle}` : upcoming.out?.payload?.brief ? ` · ${upcoming.out.payload.brief}` : ""}
                   </span>
+                  <Readiness entry={upcoming} onBrand />
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {upcoming.caption ? <CopyText text={upcoming.caption} label="Copier la légende" copiedLabel="Légende copiée" /> : null}
                     {upcoming.out ? (
-                      <a href={`/api/outs/${upcoming.out.id}/download`} className="inline-flex items-center gap-2 rounded-pill bg-soft px-4 py-2 text-small font-semibold text-ink transition duration-(--duration-fast) ease-cimaise hover:bg-line">
+                      <a href={`/api/outs/${upcoming.out.id}/download`} className={ON_BRAND_BUTTON}>
                         <Download size={16} strokeWidth={1.75} /> Télécharger le visuel
                       </a>
+                    ) : (
+                      <ButtonLink href={studioHref(upcoming)} className={ON_BRAND_BUTTON}>
+                        <Wand2 size={16} strokeWidth={1.75} /> Créer le visuel
+                      </ButtonLink>
+                    )}
+                    {upcoming.caption ? (
+                      <CopyText text={upcoming.caption} label="Copier la légende" copiedLabel="Légende copiée" />
+                    ) : llmReady ? (
+                      <form action={writeCaption}>
+                        <input type="hidden" name="entryId" value={upcoming.id} />
+                        <input type="hidden" name="mois" value={month} />
+                        <SubmitButton variant="soft" pendingLabel="Rédaction…">
+                          <PenLine size={16} strokeWidth={1.75} /> Faire rédiger la légende
+                        </SubmitButton>
+                      </form>
                     ) : null}
                     <a href={`#${upcoming.id}`} className="inline-flex items-center gap-2 rounded-pill px-2 py-2 text-small underline underline-offset-4 opacity-80 hover:opacity-100">Voir le détail</a>
                   </div>
@@ -234,15 +250,25 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
               <WeekRow key={week[0].day} week={week} today={today} selectedDay={selectedDay} month={month} byDay={byDay} gaps={weekGaps(cadence, week.map((d) => d.day), entries)} />
             ))}
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Meta>Cliquez sur un jour pour planifier.</Meta>
+            <span className="inline-flex items-center gap-2 font-mono text-meta text-mute"><span className="inline-block h-3 w-6 rounded-tag bg-ink" /> planifiée</span>
+            <span className="inline-flex items-center gap-2 font-mono text-meta text-mute"><span className="inline-block h-3 w-6 rounded-tag border border-dashed border-mute" /> proposée, à valider</span>
+            <span className="inline-flex items-center gap-2 font-mono text-meta text-mute"><span className="inline-block h-3 w-6 rounded-tag bg-success-tint" /> publiée</span>
+          </div>
         </Card>
 
         {/* ---- Planifier ---- */}
         <Card id="planifier" className="scroll-mt-4 lg:col-span-12">
-          <CardHeader
-            title={selectedDay ? `Planifier le ${DAY_LABEL.format(asDate(selectedDay))}` : "Planifier"}
-            aside={<Meta>{kept.length} création{kept.length > 1 ? "s" : ""} gardée{kept.length > 1 ? "s" : ""}</Meta>}
-          />
-          <form action={plan} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          {/* The main gesture is a click on a day: the form only unfolds then, or on demand. */}
+          <details open={Boolean(selectedDay)} className="group">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-4">
+              <span className="text-title text-ink">{selectedDay ? `Planifier le ${DAY_LABEL.format(asDate(selectedDay))}` : "Planifier à la main"}</span>
+              <Meta>
+                {kept.length} création{kept.length > 1 ? "s" : ""} gardée{kept.length > 1 ? "s" : ""} · <span className="group-open:hidden">ouvrir</span><span className="hidden group-open:inline">fermer</span>
+              </Meta>
+            </summary>
+          <form action={plan} className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
             <div className="grid content-start gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Date">
@@ -269,45 +295,59 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
               <SubmitButton pendingLabel="Planification…" className="justify-self-start">Planifier</SubmitButton>
             </div>
           </form>
+          </details>
         </Card>
 
-        {/* ---- Le mois, semaine par semaine ---- */}
+        {/* ---- Le mois, semaine par semaine : la semaine en cours d'abord, le passé replié ---- */}
         <Card className="lg:col-span-12">
           <CardHeader title="Ce mois-ci" aside={<Meta>{inMonth.length} publication{inMonth.length > 1 ? "s" : ""}</Meta>} />
-          {inMonth.length || cadence.length ? (
-            <div className="grid gap-6">
-              {weeks.map((week) => {
-                const days = week.map((d) => d.day);
-                const rows = inMonth.filter((entry) => days.includes(entry.scheduled_on));
-                const gaps = weekGaps(cadence, days, entries);
-                if (!rows.length && !gaps.length) return null;
-                const over = days[6] < today;
-                return (
-                  <section key={days[0]} className="grid gap-2">
-                    <div className="flex flex-wrap items-center gap-2 border-b border-line pb-2">
-                      <Meta className="mr-auto text-ink">Semaine du {WEEK_LABEL.format(asDate(days[0]))}</Meta>
-                      {gaps.map((gap) => (
-                        <Tag key={gap.channel} tone={gap.planned >= gap.expected ? "success" : over ? "neutral" : "warning"}>
+          {(() => {
+            const sections = weeks.map((week) => {
+              const days = week.map((d) => d.day);
+              const rows = inMonth.filter((entry) => days.includes(entry.scheduled_on));
+              return { days, rows, over: days[6] < today, gaps: weekGaps(cadence, days, entries) };
+            });
+            const ahead = sections.filter((w) => !w.over && (w.rows.length || w.gaps.length));
+            const past = sections.filter((w) => w.over && w.rows.length);
+            const render = (w: (typeof sections)[number]) => (
+              <section key={w.days[0]} className="grid gap-2">
+                <div className="flex flex-wrap items-center gap-2 border-b border-line pb-2">
+                  <Meta className="mr-auto text-ink">Semaine du {WEEK_LABEL.format(asDate(w.days[0]))}</Meta>
+                  {w.over
+                    ? null
+                    : w.gaps.map((gap) => (
+                        <Tag key={gap.channel} tone={gap.planned >= gap.expected ? "success" : "warning"}>
                           {CHANNELS[gap.channel]} {gap.planned}/{gap.expected}
                         </Tag>
                       ))}
-                    </div>
-                    {rows.length ? (
-                      <ul>
-                        {rows.map((entry) => (
-                          <EntryRow key={entry.id} entry={entry} month={month} kept={kept} llmReady={llmReady} />
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="py-2 text-small text-mute">{over ? "Rien n’a été publié cette semaine-là." : "Rien de planifié cette semaine."}</p>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-small text-mute">Aucune publication planifiée ce mois-ci.</p>
-          )}
+                </div>
+                {w.rows.length ? (
+                  <ul>
+                    {w.rows.map((entry) => (
+                      <EntryRow key={entry.id} entry={entry} month={month} kept={kept} llmReady={llmReady} />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="py-2 text-small text-mute">Rien de planifié cette semaine.</p>
+                )}
+              </section>
+            );
+            if (!ahead.length && !past.length) return <p className="text-small text-mute">Aucune publication planifiée ce mois-ci.</p>;
+            return (
+              <div className="grid gap-6">
+                {ahead.map(render)}
+                {past.length ? (
+                  <details className="group grid gap-6">
+                    <summary className="cursor-pointer list-none font-mono text-meta text-mute transition duration-(--duration-fast) ease-cimaise hover:text-ink">
+                      <span className="group-open:hidden">Voir les semaines passées ({past.reduce((n, w) => n + w.rows.length, 0)} publication{past.reduce((n, w) => n + w.rows.length, 0) > 1 ? "s" : ""})</span>
+                      <span className="hidden group-open:inline">Masquer les semaines passées</span>
+                    </summary>
+                    {past.map(render)}
+                  </details>
+                ) : null}
+              </div>
+            );
+          })()}
         </Card>
 
         {/* ---- Faire valider par le client ---- */}
@@ -353,6 +393,27 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
 }
 
 /* ------------------------------------------------------------------ */
+
+/** A publication can go out when it has its visual and its caption. */
+const isReady = (entry: EntryWithOut) => Boolean(entry.out && entry.caption);
+
+/** The Studio, with the idea (or the angle) as the brief, and the planned day so the creation can be attached back. */
+const studioHref = (entry: EntryWithOut) => `/app/studio?brief=${encodeURIComponent(entry.idea || entry.angle || "")}`;
+
+/** What is still missing before publishing: nothing to say when all is there. */
+function Readiness({ entry, onBrand = false }: { entry: EntryWithOut; onBrand?: boolean }) {
+  const missing = [!entry.out && "le visuel", !entry.caption && "la légende"].filter(Boolean) as string[];
+  if (!missing.length) return onBrand ? <span className="font-mono text-meta opacity-80">Prête à publier</span> : <Tag tone="success">Prête à publier</Tag>;
+  const label = `Il manque ${missing.join(" et ")}`;
+  if (onBrand) {
+    return (
+      <span className="inline-flex items-center gap-2 font-mono text-meta opacity-90">
+        {!entry.out ? <ImageOff size={14} strokeWidth={1.75} /> : <TextCursorInput size={14} strokeWidth={1.75} />} {label}
+      </span>
+    );
+  }
+  return <Tag tone="warning">{label}</Tag>;
+}
 
 function WeekRow({
   week,
@@ -442,6 +503,7 @@ function EntryRow({ entry, month, kept, llmReady }: { entry: EntryWithOut; month
           {entry.client_status === "changes" ? <Tag tone="danger">Changement demandé</Tag> : null}
         </span>
         {entry.angle ? <Meta>Angle · {entry.angle}</Meta> : null}
+        {!proposed && entry.status === "planned" ? <Readiness entry={entry} /> : null}
         {entry.client_status === "changes" && entry.client_comment ? <p className="rounded-inner bg-danger-tint px-4 py-3 text-small text-danger">Le client : « {entry.client_comment} »</p> : null}
         <p className="whitespace-pre-line text-small text-mute">
           {entry.caption || (entry.out ? entry.out.payload?.brief : entry.idea ? `Visuel à créer : ${entry.idea}` : "") || "Pas encore de légende."}
@@ -461,8 +523,8 @@ function EntryRow({ entry, month, kept, llmReady }: { entry: EntryWithOut; month
                   <Check size={16} strokeWidth={1.75} /> Valider
                 </SubmitButton>
               </form>
-              {!entry.out && entry.idea ? (
-                <ButtonLink href={`/app/studio?brief=${encodeURIComponent(entry.idea)}`} variant="soft">
+              {!entry.out ? (
+                <ButtonLink href={studioHref(entry)} variant="soft">
                   <Wand2 size={16} strokeWidth={1.75} /> Créer ce visuel
                 </ButtonLink>
               ) : null}
@@ -473,20 +535,30 @@ function EntryRow({ entry, month, kept, llmReady }: { entry: EntryWithOut; month
             </>
           ) : (
             <>
-              {entry.caption ? <CopyText text={entry.caption} label="Copier la légende" copiedLabel="Légende copiée" /> : null}
               {entry.out ? (
                 <a href={`/api/outs/${entry.out.id}/download`} className="inline-flex items-center gap-2 rounded-pill bg-soft px-4 py-2 text-small font-semibold text-ink transition duration-(--duration-fast) ease-cimaise hover:bg-line">
                   <Download size={16} strokeWidth={1.75} /> Télécharger
                 </a>
-              ) : entry.idea ? (
-                <ButtonLink href={`/app/studio?brief=${encodeURIComponent(entry.idea)}`} variant="soft">
-                  <Wand2 size={16} strokeWidth={1.75} /> Créer ce visuel
+              ) : entry.status === "planned" ? (
+                <ButtonLink href={studioHref(entry)} variant="soft">
+                  <Wand2 size={16} strokeWidth={1.75} /> Créer le visuel
                 </ButtonLink>
+              ) : null}
+              {entry.caption ? (
+                <CopyText text={entry.caption} label="Copier la légende" copiedLabel="Légende copiée" />
+              ) : llmReady && entry.status === "planned" ? (
+                <form action={writeCaption}>
+                  {hidden}
+                  <SubmitButton variant="soft" pendingLabel="Rédaction…">
+                    <PenLine size={16} strokeWidth={1.75} /> Faire rédiger la légende
+                  </SubmitButton>
+                </form>
               ) : null}
               <form action={changeStatus}>
                 {hidden}
                 <input type="hidden" name="status" value={entry.status === "planned" ? "published" : "planned"} />
-                <SubmitButton variant="soft" pendingLabel="…">
+                {/* Publishing is the end of the road: it only stands out once the publication is ready. */}
+                <SubmitButton variant={entry.status === "planned" && !isReady(entry) ? "ghost" : "soft"} pendingLabel="…">
                   {entry.status === "planned" ? <Check size={16} strokeWidth={1.75} /> : <Undo2 size={16} strokeWidth={1.75} />}
                   {entry.status === "planned" ? "Marquer publiée" : "Replanifier"}
                 </SubmitButton>
@@ -496,9 +568,10 @@ function EntryRow({ entry, month, kept, llmReady }: { entry: EntryWithOut; month
         </div>
 
         <details className="group">
-          <summary className="cursor-pointer list-none font-mono text-meta text-mute transition duration-(--duration-fast) ease-cimaise hover:text-ink">
-            <span className="group-open:hidden">Modifier · date, canal, création, légende</span>
-            <span className="hidden group-open:inline">Fermer</span>
+          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-pill px-2 py-2 text-small text-mute transition duration-(--duration-fast) ease-cimaise hover:text-ink">
+            <Settings2 size={16} strokeWidth={1.75} />
+            <span className="group-open:hidden">Modifier</span>
+            <span className="hidden group-open:inline">Fermer la modification</span>
           </summary>
           <div className="mt-4 grid gap-4">
             <form action={edit} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
