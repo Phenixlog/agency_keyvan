@@ -4,11 +4,12 @@ import { Logo } from "@/components/brand/Logo";
 import { ButtonLink, Meta } from "@/components/ui";
 import { brandStyle } from "@/lib/tokens";
 
-export const ONBOARDING_STEPS = ["Source", "Lecture", "Analyse", "Relecture", "Première création", "Entrée"] as const;
+export const ONBOARDING_STEPS = ["Orientation", "Matière", "Analyse", "Entreprise", "Voix", "Offre et canaux", "Validation"] as const;
 
 /**
- * Cadre commun des six étapes. Dès que le Brand OS existe (étape 4), `brandColor`
+ * Cadre commun des sept étapes. Dès que le Brand OS existe (étape 4), `brandColor`
  * reteinte l'étape : c'est le moment où l'atelier devient celui de la marque.
+ * Les étapes 4 à 6 sont préremplies par l'analyse : on corrige, on ne remplit pas.
  */
 export function Step({
   step,
@@ -20,7 +21,7 @@ export function Step({
   wide = false,
   children,
 }: {
-  step: 1 | 2 | 3 | 4 | 5 | 6;
+  step: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   title: ReactNode;
   intro: ReactNode;
   back?: string;

@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { MessageSquareText, Users, X } from "lucide-react";
 import type { BoardData } from "@/lib/brand-board";
-import { parsePalette, parsePillar } from "@/lib/brand-os/model";
+import { FREQUENCIES, SLIDERS, parsePalette, parsePillar } from "@/lib/brand-os/model";
 import { onBrand } from "@/lib/tokens";
 import { CHANNELS, validCadence } from "@/lib/calendar/model";
 
@@ -138,6 +138,48 @@ export function BrandBoard({ board, editable = false }: { board: BoardData; edit
         </Section>
       </div>
 
+      {/* ---- L'entreprise et ses publics (questionnaire d'onboarding) ---- */}
+      {canon.business?.offer || canon.audiences?.length ? (
+        <div className="grid gap-4 lg:grid-cols-12">
+          {canon.business?.offer ? (
+            <Section title="Ce qu’elle vend" review="Je veux revoir l’offre, les bénéfices et l’objectif de la marque." editable={editable} className="lg:col-span-5">
+              <p className="font-display text-h2 font-normal text-ink">{canon.business.offer}</p>
+              {canon.business.benefits.length ? (
+                <ul className="grid gap-2">
+                  {canon.business.benefits.map((benefit) => (
+                    <li key={benefit} className="flex items-start gap-3 text-body text-ink">
+                      <span className="mt-2 size-1.5 flex-none rounded-pill bg-brand" />
+                      <span className="first-letter:uppercase">{benefit}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <dl className="grid gap-2 border-t border-line pt-4 font-mono text-meta text-mute">
+                {canon.business.sector ? <div><dt className="inline">Secteur · </dt><dd className="inline text-ink">{canon.business.sector}</dd></div> : null}
+                {canon.business.area ? <div><dt className="inline">Zone · </dt><dd className="inline text-ink">{canon.business.area}</dd></div> : null}
+                {canon.business.objective ? <div><dt className="inline">Objectif 90 jours · </dt><dd className="inline text-ink">{canon.business.objective}</dd></div> : null}
+                {canon.business.alternative ? <div><dt className="inline">Sinon, le client · </dt><dd className="inline text-ink">{canon.business.alternative}</dd></div> : null}
+              </dl>
+            </Section>
+          ) : null}
+          {canon.audiences?.length ? (
+            <Section title="Ses publics" review="Je veux revoir les publics de la marque : qui, désir, objection, preuve." editable={editable} className={canon.business?.offer ? "lg:col-span-7" : "lg:col-span-12"}>
+              <ol className={`grid gap-4 ${canon.audiences.length > 1 ? "md:grid-cols-2" : ""}`}>
+                {canon.audiences.map((audience, index) => (
+                  <li key={audience.who} className="grid content-start gap-2 rounded-inner bg-soft p-4">
+                    <span className="font-mono text-meta text-mute">{index === 0 ? "Public principal" : `Public ${index + 1}`}</span>
+                    <span className="font-display text-h2 font-normal text-ink">{audience.who}</span>
+                    {audience.desire ? <span className="text-small text-ink"><span className="text-mute">Veut · </span>{audience.desire}</span> : null}
+                    {audience.objection ? <span className="text-small text-ink"><span className="text-mute">Hésite · </span>{audience.objection}</span> : null}
+                    {audience.proof ? <span className="text-small text-ink"><span className="text-mute">Convaincu par · </span>{audience.proof}</span> : null}
+                  </li>
+                ))}
+              </ol>
+            </Section>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* ---- Voix : là où le client se reconnaît ---- */}
       {canon.voice?.says.length || canon.voice?.never.length || editable ? (
         <Section title="Sa voix" review="Je veux revoir la voix de la marque : ce qu’elle dirait, ce qu’elle ne dirait jamais." editable={editable}>
@@ -161,7 +203,87 @@ export function BrandBoard({ board, editable = false }: { board: BoardData; edit
               Pas encore d’exemples de voix pour cette marque. Relancez l’analyse (dans les coulisses, en bas de page) ou demandez-les à l’expert.
             </p>
           )}
+          {canon.voice?.must?.length || canon.voice?.forbidden?.length || canon.voice?.address || canon.voice?.sliders ? (
+            <div className="grid gap-4 border-t border-line pt-4 md:grid-cols-2">
+              <div className="grid content-start gap-3">
+                {canon.voice.address ? <p className="font-mono text-meta text-mute">{canon.voice.address === "tu" ? "Elle tutoie" : "Elle vouvoie"}</p> : null}
+                {canon.voice.must?.length ? (
+                  <p className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-meta text-success">Ses mots</span>
+                    {canon.voice.must.map((word) => <span key={word} className="rounded-pill bg-success-tint px-3 py-1 text-small text-success">{word}</span>)}
+                  </p>
+                ) : null}
+                {canon.voice.forbidden?.length ? (
+                  <p className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-meta text-danger">Interdits</span>
+                    {canon.voice.forbidden.map((word) => <span key={word} className="rounded-pill bg-danger-tint px-3 py-1 text-small text-danger line-through">{word}</span>)}
+                  </p>
+                ) : null}
+              </div>
+              {canon.voice.sliders ? (
+                <dl className="grid content-start gap-2">
+                  {SLIDERS.map(({ key, left, right }) => (
+                    <div key={key} className="grid grid-cols-[6rem_minmax(0,1fr)_6rem] items-center gap-2 font-mono text-meta text-mute">
+                      <dt className="truncate">{left}</dt>
+                      <dd className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <span key={n} className={`h-1.5 flex-1 rounded-pill ${n === canon.voice!.sliders![key] ? "bg-ink" : "bg-line"}`} />
+                        ))}
+                      </dd>
+                      <dt className="truncate text-right">{right}</dt>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+            </div>
+          ) : null}
         </Section>
+      ) : null}
+
+      {/* ---- Offres, preuves, où elle parle ---- */}
+      {canon.offers?.items.length || canon.offers?.proofs.length || canon.presence?.push.length || canon.presence?.formats.length ? (
+        <div className="grid gap-4 lg:grid-cols-12">
+          {canon.offers?.items.length || canon.offers?.proofs.length || canon.offers?.legal.length ? (
+            <Section title="Offres et preuves" review="Je veux revoir les offres phares, les preuves et les contraintes légales de la marque." editable={editable} className="lg:col-span-7">
+              {canon.offers.items.length ? (
+                <ul className="grid gap-3">
+                  {canon.offers.items.map((item) => (
+                    <li key={item.name} className="grid gap-0.5 border-t border-line pt-3">
+                      <span className="text-title text-ink">{item.name}</span>
+                      {item.line ? <span className="text-small text-mute">{item.line}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {canon.offers.proofs.length ? (
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-meta text-mute">Preuves</span>
+                  {canon.offers.proofs.map((proof) => <span key={proof} className="rounded-pill bg-tint px-3 py-1 text-small text-ink">{proof}</span>)}
+                </p>
+              ) : null}
+              {canon.offers.legal.length ? <p className="font-mono text-meta text-warning">Mentions · {canon.offers.legal.join(" · ")}</p> : null}
+              {canon.offers.showPrices ? <p className="font-mono text-meta text-mute">Prix affichés publiquement · {canon.offers.showPrices}</p> : null}
+            </Section>
+          ) : null}
+          {canon.presence?.push.length || canon.presence?.formats.length || canon.presence?.active.length ? (
+            <Section title="Où elle parle" review="Je veux revoir les canaux et les formats prioritaires de la marque." editable={editable} className={canon.offers?.items.length || canon.offers?.proofs.length ? "lg:col-span-5" : "lg:col-span-12"}>
+              {canon.presence.push.length ? (
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-meta text-mute">À pousser</span>
+                  {canon.presence.push.map((c) => <span key={c} className="rounded-pill bg-ink px-3 py-1 text-small text-card">{CHANNELS[c as keyof typeof CHANNELS] ?? c}</span>)}
+                </p>
+              ) : null}
+              {canon.presence.active.length ? (
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-meta text-mute">Actifs</span>
+                  {canon.presence.active.map((c) => <span key={c} className="rounded-pill bg-soft px-3 py-1 text-small text-ink">{CHANNELS[c as keyof typeof CHANNELS] ?? c}</span>)}
+                </p>
+              ) : null}
+              {canon.presence.formats.length ? <p className="text-small text-ink"><span className="font-mono text-meta text-mute">Formats · </span>{canon.presence.formats.join(", ")}</p> : null}
+              {canon.presence.frequency ? <p className="font-mono text-meta text-mute">Rythme perçu · {FREQUENCIES[canon.presence.frequency]}</p> : null}
+            </Section>
+          ) : null}
+        </div>
       ) : null}
 
       {/* ---- Piliers ---- */}
@@ -190,13 +312,18 @@ export function BrandBoard({ board, editable = false }: { board: BoardData; edit
         </Section>
         <Section title="Ce qu’on ne verra jamais" editable={editable} className="lg:col-span-5">
           <ul className="grid gap-3">
-            {canon.visual.avoid.map((item) => (
+            {[...canon.visual.avoid, ...(canon.identity?.nonNegotiables ?? []), ...(canon.identity?.dated ?? [])].map((item) => (
               <li key={item} className="flex items-start gap-3 text-body text-ink">
                 <span className="mt-1 grid size-5 flex-none place-items-center rounded-pill bg-danger-tint text-danger"><X size={12} strokeWidth={2} /></span>
                 <span className="first-letter:uppercase">{item}</span>
               </li>
             ))}
           </ul>
+          {canon.identity?.fonts.display || canon.identity?.fonts.body ? (
+            <p className="border-t border-line pt-4 font-mono text-meta text-mute">
+              Polices · {[canon.identity.fonts.display, canon.identity.fonts.body].filter(Boolean).join(" / ")}
+            </p>
+          ) : null}
         </Section>
       </div>
 

@@ -11,9 +11,9 @@ export const ACTIVE_BRAND_COOKIE = "active_brand";
 export type Workspace = {
   userId: string;
   email: string | null;
-  brands: { id: string; name: string; org_id: string }[];
+  brands: BrandRow[];
   /** Marque active : cookie, sinon la plus ancienne. Null tant qu'aucune marque n'existe. */
-  brand: { id: string; name: string; org_id: string } | null;
+  brand: BrandRow | null;
   os: { version: number; summary: string; canon: BrandOS | null; createdAt: string } | null;
   mega: (MegaPrompt & { version: number }) | null;
   /** Couleur de la marque cliente, tirée de la palette du Brand OS. */
@@ -21,20 +21,28 @@ export type Workspace = {
 };
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
-export type BrandRow = { id: string; name: string; org_id: string; archived_at?: string | null };
+export type BrandRow = { id: string; name: string; org_id: string; archived_at?: string | null; validated_at?: string | null };
+
+/** Before migration 0011 the column is absent: nothing is gated. */
+export const isValidated = (brand: BrandRow | null | undefined): boolean => !brand || !("validated_at" in brand) || Boolean(brand.validated_at);
 
 /** Active clients (or archived ones). Before migration 0005 nothing can be archived: all are active. */
 export async function listBrands(supabase: Supabase, archived: boolean): Promise<BrandRow[]> {
-  const query = supabase.from("brands").select("id,name,org_id,archived_at").order("created_at", { ascending: true });
-  const { data, error } = await (archived ? query.not("archived_at", "is", null) : query.is("archived_at", null));
+  const select = async (columns: string) => {
+    const query = supabase.from("brands").select(columns).order("created_at", { ascending: true });
+    return archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
+  };
+  // Column lists depend on which migrations were applied (0005: archived_at, 0011: validated_at).
+  let { data, error } = await select("id,name,org_id,archived_at,validated_at");
+  if (isMissingColumn(error)) ({ data, error } = await select("id,name,org_id,archived_at"));
   if (isMissingColumn(error)) {
     if (archived) return [];
     const fallback = await supabase.from("brands").select("id,name,org_id").order("created_at", { ascending: true });
     if (fallback.error) throw fallback.error;
-    return fallback.data ?? [];
+    return (fallback.data ?? []) as unknown as BrandRow[];
   }
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as unknown as BrandRow[];
 }
 
 /**

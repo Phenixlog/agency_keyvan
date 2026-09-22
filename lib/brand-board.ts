@@ -28,14 +28,15 @@ export async function loadBoard(supabase: SupabaseClient, brandId: string): Prom
   ]);
   if (!brand || !os || !isBrandOS(os.canon)) return null;
 
-  const data = (brand.data ?? {}) as { url?: string | null; site?: { logo?: string | null } | null };
+  const data = (brand.data ?? {}) as { url?: string | null; site?: { logo?: string | null } | null; logo?: { url?: string } | null };
   return {
     name: brand.name as string,
     canon: os.canon,
     version: os.version as number,
     analysedAt: os.created_at as string,
     color: brandColorFromPalette(os.canon.visual.palette),
-    logo: data.site?.logo ?? null,
+    // A logo dropped during onboarding beats the one guessed from the site's <head>.
+    logo: data.logo?.url ?? data.site?.logo ?? null,
     siteUrl: data.url ?? null,
     wall: (outs ?? [])
       .map((out) => ({ src: outImageUrl(out.payload as OutPayload | null), alt: (out.payload as OutPayload | null)?.brief ?? "" }))

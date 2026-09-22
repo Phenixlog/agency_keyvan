@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, ArrowUpRight, CalendarDays, Check, Clock, MessageSquareWarning, ScanSearch, Target } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, Check, ClipboardCheck, Clock, MessageSquareWarning, ScanSearch, Target } from "lucide-react";
 import { OutTile, type OutRow } from "@/components/app/OutTile";
-import { BrandCard, ButtonLink, Card, CardHeader, Empty, Field, Input, Meta, Tag, Textarea, VersionTag } from "@/components/ui";
+import { BrandCard, ButtonLink, Card, CardHeader, Empty, Field, Input, Meta, Notice, Tag, Textarea, VersionTag } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { FORMAT_FAMILIES, IMAGE_FORMATS, OFFERED_FORMATS, type FormatFamily } from "@/lib/brand-os";
 import { PROPOSALS_PER_BRIEF } from "@/lib/jobs/engine";
 import { CHANNELS, toDay, upcomingEntries } from "@/lib/calendar";
 import { listClientCards } from "@/lib/clients";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getWorkspace } from "@/lib/workspace";
+import { getWorkspace, isValidated } from "@/lib/workspace";
 import { createProposals } from "./studio/actions";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +25,11 @@ const DAY_MONTH = new Intl.DateTimeFormat("fr-FR", { month: "short", timeZone: "
 
 const ORIGIN_LABEL: Record<string, string> = { llm: "Analyse de la marque", fallback: "Brouillon sans analyse IA", expert: "Changement de l’expert" };
 
-export default async function ClientHome() {
+export default async function ClientHome({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
   const { brand, brands, os, mega } = await getWorkspace();
   if (!brand) redirect("/app/clients");
+  const { ok } = await searchParams;
+  const validated = isValidated(brand);
 
   const today = toDay(new Date());
   const supabase = await createSupabaseServerClient();
@@ -41,6 +43,7 @@ export default async function ClientHome() {
 
   // What is waiting for a decision, most blocking first. Each line leads to where it is settled.
   const todo = [
+    !validated && { icon: ClipboardCheck, text: "Le Brand OS n’est pas validé : Studio et Calendrier sont fermés.", href: "/app/studio", cta: "Relire et valider" },
     signals?.brandOS === "none" && { icon: ScanSearch, text: "Le Brand OS n’est pas encore construit.", href: "/app/marque", cta: "Ouvrir la marque" },
     signals?.brandOS === "draft" && { icon: ScanSearch, text: "Le Brand OS est un brouillon, produit sans analyse IA.", href: "/app/marque", cta: "Relancer l’analyse" },
     signals?.pendingProposals && {
@@ -76,6 +79,7 @@ export default async function ClientHome() {
 
   return (
     <>
+      {ok === "valide" ? <Notice tone="success">Brand OS validé. Studio et Calendrier sont ouverts : tout ce qui sort ressemblera à {brand.name}.</Notice> : null}
       <header>
         <Meta className="block first-letter:uppercase">
           {TODAY.format(new Date())}
@@ -132,6 +136,9 @@ export default async function ClientHome() {
 
         <Card className="lg:col-span-6">
           <CardHeader title="Créer un visuel" aside={<Meta>brief → image</Meta>} />
+          {!validated ? (
+            <p className="text-small text-mute">Le Studio s’ouvre une fois le Brand OS validé.</p>
+          ) : (
           <form action={createProposals} className="grid gap-4">
             <Field label="Brief" hint="Facultatif. Sans brief, Brand OS illustre la promesse de la marque.">
               <Textarea name="brief" rows={2} maxLength={800} placeholder="Une scène, un objet, une situation…" />
@@ -152,6 +159,7 @@ export default async function ClientHome() {
               <SubmitButton pendingLabel="Création… (≈ 30 s)">Créer {PROPOSALS_PER_BRIEF} propositions</SubmitButton>
             </div>
           </form>
+          )}
         </Card>
 
         <Card className="lg:col-span-6">

@@ -1,55 +1,30 @@
 import { redirect } from "next/navigation";
-import { ArrowRight, Pin } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Step } from "@/components/onboarding/Step";
-import { ButtonLink, Field, Input, Meta, Notice, Tag } from "@/components/ui";
+import { Field, Meta, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
-import { queueSocialGeneration, getJob } from "@/lib/jobs/engine";
-import { bumpMegaPrompt } from "@/lib/learning";
-import { getOnboardingBrandOS, keepOut, requireOnboardingBrand } from "@/lib/onboarding";
-import { outImageUrl, type OutPayload } from "@/lib/outs";
+import { SLIDERS } from "@/lib/brand-os/model";
+import { getOnboardingBrandOS, requireOnboardingBrand, saveCanonDraft } from "@/lib/onboarding";
+import { DEFAULT_SLIDERS, readVoice } from "@/lib/onboarding-answers";
 
 export const dynamic = "force-dynamic";
 
-const MAX_TEXT = 300;
+export default async function OB05() {
+  const { brandId } = await requireOnboardingBrand();
+  const brand = await getOnboardingBrandOS(brandId);
+  if (!brand.canon) redirect("/onboarding/03");
+  const { canon } = brand;
+  const voice = canon.voice;
+  const sliders = voice?.sliders ?? DEFAULT_SLIDERS;
 
-export default async function OB05({ searchParams }: { searchParams: Promise<{ job?: string; learned?: string }> }) {
-  const { supabase, brandId } = await requireOnboardingBrand();
-  const { job: jobId, learned } = await searchParams;
-  const [brand, { data: outs }, job] = await Promise.all([
-    getOnboardingBrandOS(brandId),
-    supabase
-      .from("outs")
-      .select("id,payload,status")
-      .eq("brand_id", brandId)
-      .neq("status", "archived")
-      .order("created_at", { ascending: false }),
-    jobId ? getJob(jobId) : null,
-  ]);
-  const keptCount = (outs ?? []).filter((o) => o.status === "ready").length;
-
-  async function launch(formData: FormData) {
+  async function save(formData: FormData) {
     "use server";
-    const { user, orgId, brandId } = await requireOnboardingBrand();
-    const brief = String(formData.get("brief") || "").trim().slice(0, MAX_TEXT);
-    // The action waits for the image (10-25 s): the button shows progress meanwhile.
-    const { jobId } = await queueSocialGeneration({ orgId, brandId, userId: user.id, brief });
-    redirect(`/onboarding/05?job=${jobId}`);
-  }
-
-  async function keep(formData: FormData) {
-    "use server";
-    await requireOnboardingBrand();
-    await keepOut(String(formData.get("outId")));
-    redirect("/onboarding/05");
-  }
-
-  async function feedback(formData: FormData) {
-    "use server";
-    const { user, brandId } = await requireOnboardingBrand();
-    const text = String(formData.get("feedback") || "").trim().slice(0, MAX_TEXT);
-    if (!text) return;
-    await bumpMegaPrompt({ brandId, userId: user.id, feedback: text });
-    redirect("/onboarding/05?learned=1");
+    const { brandId } = await requireOnboardingBrand();
+    await saveCanonDraft(brandId, (os) => {
+      const { tone, ...next } = readVoice(formData, os.voice);
+      return { ...os, tone: tone.length ? tone : os.tone, voice: next };
+    });
+    redirect("/onboarding/06");
   }
 
   return (
@@ -58,67 +33,76 @@ export default async function OB05({ searchParams }: { searchParams: Promise<{ j
       wide
       back="/onboarding/04"
       brandColor={brand.color}
-      title="Une première création"
-      intro={`Testez le Brand OS de ${brand.name} sur un vrai visuel. Gardez ce qui vous plaît, dites ce qui ne va pas : chaque remarque devient une règle pour la suite.`}
+      title="Comment elle parle"
+      intro="Les curseurs et les mots sont les garde-fous contre le contenu générique. Brand OS les a réglés d’après ce qu’il a lu : déplacez ce qui ne vous ressemble pas."
     >
-      {job?.status === "failed" ? (
-        <Notice tone="danger">La création a échoué : {job.error || "erreur inconnue"}. Vous pouvez réessayer.</Notice>
-      ) : null}
-      {learned ? <Notice tone="success">Remarque intégrée : elle s’appliquera aux prochaines créations.</Notice> : null}
+      <form action={save} className="grid gap-8">
+        <section className="grid gap-4">
+          <h2 className="font-display text-h2 font-normal text-ink">Les curseurs</h2>
+          <div className="grid gap-3">
+            {SLIDERS.map(({ key, left, right }) => (
+              <label key={key} className="grid items-center gap-2 rounded-inner bg-soft px-4 py-3 md:grid-cols-[8rem_minmax(0,1fr)_8rem]">
+                <span className="text-small font-semibold text-ink">{left}</span>
+                <input type="range" name={`s_${key}`} min={1} max={5} step={1} defaultValue={sliders[key]} aria-label={`${left} ou ${right}`} className="w-full accent-ink" />
+                <span className="text-small font-semibold text-ink md:text-right">{right}</span>
+              </label>
+            ))}
+          </div>
+        </section>
 
-      <form action={launch} className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
-        <Field label="Que voulez-vous voir ?" hint="Facultatif. Sans brief, Brand OS illustre la promesse de la marque.">
-          <Input name="brief" maxLength={MAX_TEXT} placeholder="Une scène, un objet, une situation…" />
-        </Field>
-        <SubmitButton pendingLabel="Création en cours… (≈ 20 s)">Créer un visuel 1:1</SubmitButton>
+        <section className="grid gap-4">
+          <h2 className="font-display text-h2 font-normal text-ink">Les mots</h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Field label="Ton" hint="Trois à cinq adjectifs, un par ligne.">
+              <Textarea name="tone" rows={5} defaultValue={canon.tone.join("\n")} />
+            </Field>
+            <Field label="Mots qu’on doit pouvoir utiliser" hint="Son vocabulaire. Un par ligne.">
+              <Textarea name="must" rows={5} defaultValue={(voice?.must ?? []).join("\n")} />
+            </Field>
+            <Field label="Mots et sujets interdits" hint="Un par ligne.">
+              <Textarea name="forbidden" rows={5} defaultValue={(voice?.forbidden ?? []).join("\n")} />
+            </Field>
+          </div>
+          <fieldset className="flex flex-wrap items-center gap-4">
+            <legend className="sr-only">Tutoiement ou vouvoiement</legend>
+            <Meta>Elle s’adresse au client en</Meta>
+            {(
+              [
+                ["vous", "vouvoyant"],
+                ["tu", "tutoyant"],
+                ["", "on verra"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="inline-flex cursor-pointer items-center gap-2 rounded-pill bg-soft px-4 py-2 text-small text-ink has-[:checked]:bg-ink has-[:checked]:text-card">
+                <input type="radio" name="address" value={value} defaultChecked={(voice?.address ?? "") === value} className="sr-only" />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+        </section>
+
+        <section className="grid gap-4">
+          <h2 className="font-display text-h2 font-normal text-ink">En exemples</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Elle dirait" hint="Des phrases qu’elle écrirait telles quelles. Une par ligne.">
+              <Textarea name="says" rows={4} defaultValue={(voice?.says ?? []).join("\n")} />
+            </Field>
+            <Field label="Elle ne dirait jamais" hint="Les clichés du secteur, le ton contraire. Une par ligne.">
+              <Textarea name="never" rows={4} defaultValue={(voice?.never ?? []).join("\n")} />
+            </Field>
+            <Field label="On aime" hint="Marques, comptes, liens ou descriptions. Facultatif.">
+              <Textarea name="likes" rows={3} defaultValue={(voice?.likes ?? []).join("\n")} />
+            </Field>
+            <Field label="On déteste" hint="Facultatif, mais précieux.">
+              <Textarea name="dislikes" rows={3} defaultValue={(voice?.dislikes ?? []).join("\n")} />
+            </Field>
+          </div>
+        </section>
+
+        <SubmitButton pendingLabel="Enregistrement…" className="justify-self-end">
+          Offre et canaux <ArrowRight size={18} strokeWidth={1.75} />
+        </SubmitButton>
       </form>
-
-      {outs?.length ? (
-        <ul className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          {outs.map((out) => {
-            const payload = out.payload as OutPayload | null;
-            const src = outImageUrl(payload);
-            return (
-              <li key={out.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2">
-                <div className="relative aspect-square overflow-hidden rounded-inner bg-tint">
-                  {src ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={src} alt={payload?.brief || "Création"} className="absolute inset-0 size-full object-cover" />
-                  ) : null}
-                </div>
-                {out.status === "ready" ? (
-                  <Tag tone="success">
-                    <Pin size={12} strokeWidth={1.75} /> Gardée
-                  </Tag>
-                ) : (
-                  <form action={keep}>
-                    <input type="hidden" name="outId" value={out.id} />
-                    <SubmitButton variant="soft" pendingLabel="…" className="w-full">
-                      <Pin size={18} strokeWidth={1.75} /> Garder
-                    </SubmitButton>
-                  </form>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-
-      {outs?.length ? (
-        <form action={feedback} className="grid gap-4 border-t border-line pt-6 md:grid-cols-[1fr_auto] md:items-end">
-          <Field label="Quelque chose ne va pas ?" hint="Exemples : « moins de bleu », « toujours une personne dans le cadre », « pas de texte ».">
-            <Input name="feedback" maxLength={MAX_TEXT} required placeholder="Votre remarque" />
-          </Field>
-          <SubmitButton variant="soft" pendingLabel="Intégration…">En faire une règle</SubmitButton>
-        </form>
-      ) : null}
-
-      <div className="flex items-center justify-between gap-4 border-t border-line pt-6">
-        <Meta>{keptCount} création{keptCount > 1 ? "s" : ""} gardée{keptCount > 1 ? "s" : ""}</Meta>
-        <ButtonLink href="/onboarding/06" variant={keptCount ? "primary" : "soft"}>
-          Continuer <ArrowRight size={18} strokeWidth={1.75} />
-        </ButtonLink>
-      </div>
     </Step>
   );
 }

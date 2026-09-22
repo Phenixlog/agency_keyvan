@@ -85,6 +85,7 @@ Aucune chrome avant OB‑06.
 - `lib/jobs/` · pipeline de génération (WaveSpeed) + persistance `jobs`/`outs`
 - `lib/brand-os/` · modèle Brand OS, schémas JSON, replis déterministes (`model.ts`, pur et testé) + orchestration LLM (`index.ts`)
 - `lib/llm/openrouter.ts` · client OpenRouter (sortie JSON stricte)
+- `lib/onboarding-answers.ts` · questionnaire d’onboarding (lecture des formulaires préremplis vers le Brand OS, blocs verts / rouges), pur et testé
 - `lib/expertise/` · fiche d’expertise par support (`model.ts` pur et testé, `index.ts` lecture / rédaction / stockage) ; servie par `POST /api/expertise`
 - `docs/canon/` · placeholder pour le canon (à coller)
 - `docs/ADR-001-stack.md` · décision stack
@@ -98,6 +99,7 @@ Aucune chrome avant OB‑06.
 - `supabase/migrations/0008_medium_briefs.sql` · table `medium_briefs` (fiche d’expertise d’un support, rédigée une fois par le modèle, une par organisation et par support). Contrôle final : 3 lignes. Avant son application, les fiches sont gardées 30 minutes en mémoire puis réécrites.
 - `supabase/migrations/0009_calendar_planning.sql` · statut `proposed` des publications, colonnes `angle`, `idea`, `client_status`, `client_comment`, `client_reviewed_at`, et table `calendar_shares` (lien public de validation du planning, jeton révocable, rien d’ouvert aux anonymes). Contrôle final : 8 lignes. Avant son application : le calendrier fonctionne, sans propositions ni lien client.
 - `supabase/migrations/0010_expert_conversations.sql` · table `expert_conversations` (une conversation par sujet ou bilan, par client) et colonnes `conversation_id`, `creations`, `applied_os_version`, `applied_mega_version` sur `expert_messages` ; les messages existants sont rattachés à une « Conversation d’origine ». Contrôle final : 8 lignes. Avant son application, l’expert garde un seul fil par client.
+- `supabase/migrations/0011_brand_validation.sql` · colonne `brands.validated_at` (Studio et Calendrier fermés tant que le Brand OS n’est pas validé) ; les marques existantes qui ont un Brand OS sont validées d’office. Contrôle final : 1 ligne.
 
 > Note migrations: si l’agent MCP ne peut pas appliquer les migrations en staging, exécutez manuellement `0003_fix_org_members_rls.sql` dans le SQL Editor Supabase (projet staging) afin de corriger les erreurs 500 liées au login (récursion détectée dans `org_members`).
 

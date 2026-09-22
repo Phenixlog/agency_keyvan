@@ -1,9 +1,23 @@
 import { redirect } from "next/navigation";
+import { isMissingColumn } from "@/lib/db-errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { brandColorFromPalette } from "@/lib/tokens";
 import { BlockedUrlError, assertPublicUrl, safeFetchText } from "@/lib/safe-fetch";
 import { extractSiteAssets, type SiteAssets } from "@/lib/site-assets";
 import { buildBrandOS, isBrandOS, renderSummary, type BrandOS, type MegaPrompt } from "@/lib/brand-os";
+
+/** oui = identité utilisable (porte A) · logo = un logo seul (A légère) · non = à créer (porte B). */
+export type Door = "oui" | "logo" | "non";
+
+export type OnboardingData = {
+  brand_id?: string;
+  door?: Door;
+  internal_name?: string;
+  display_name?: string;
+  scrape?: { url?: string; corpus?: string };
+  /** Logo déposé pendant l'onboarding : chemin Storage et adresse publique. */
+  logo?: { path: string; url: string };
+};
 
 export type OnboardingSession = {
   id: string;
@@ -11,7 +25,7 @@ export type OnboardingSession = {
   created_by: string;
   seed: string | null;
   status: "draft" | "in_progress" | "completed" | "archived";
-  data: any;
+  data: OnboardingData;
 };
 
 export async function getActiveOnboardingSession(userId: string) {
@@ -28,43 +42,31 @@ export async function getActiveOnboardingSession(userId: string) {
   return data as OnboardingSession | null;
 }
 
-export async function upsertOnboardingSession(args: {
-  userId: string;
-  orgId: string | null;
-  seed: string | null;
-  brandId?: string | null;
-  scrape?: { url?: string; corpus?: string } | null;
-}) {
+/** Merges into the session's data: a later step never erases what an earlier one stored. */
+export async function upsertOnboardingSession(args: { userId: string; orgId: string | null; seed?: string | null; data?: Partial<OnboardingData> }) {
   const supabase = await createSupabaseServerClient();
   const existing = await getActiveOnboardingSession(args.userId);
-  const payload: any = {};
-  if (args.brandId) payload.brand_id = args.brandId;
-  if (args.scrape) payload.scrape = args.scrape;
   const toSave = {
     org_id: args.orgId,
     created_by: args.userId,
-    seed: args.seed,
+    seed: args.seed === undefined ? (existing?.seed ?? null) : args.seed,
     status: "in_progress" as const,
-    data: payload,
+    data: { ...(existing?.data ?? {}), ...(args.data ?? {}) },
   };
-  if (existing) {
-    const { data, error } = await supabase
-      .from("onboarding_sessions")
-      .update(toSave)
-      .eq("id", existing.id)
-      .select("*")
-      .single();
-    if (error) throw error;
-    return data as OnboardingSession;
-  } else {
-    const { data, error } = await supabase
-      .from("onboarding_sessions")
-      .insert(toSave)
-      .select("*")
-      .single();
-    if (error) throw error;
-    return data as OnboardingSession;
-  }
+  const query = existing ? supabase.from("onboarding_sessions").update(toSave).eq("id", existing.id) : supabase.from("onboarding_sessions").insert(toSave);
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  return data as OnboardingSession;
+}
+
+/** A client that exists but was never validated (created before the gate, or left mid-way): pick its onboarding back up at the validation screen. */
+export async function resumeOnboardingFor(args: { userId: string; orgId: string; brandId: string }) {
+  const supabase = await createSupabaseServerClient();
+  const { data: brand } = await supabase.from("brands").select("id,name,data").eq("id", args.brandId).maybeSingle();
+  if (!brand) return false;
+  const data = (brand.data ?? {}) as { seed?: string | null };
+  await upsertOnboardingSession({ userId: args.userId, orgId: args.orgId, seed: data.seed ?? null, data: { brand_id: brand.id as string, display_name: brand.name as string } });
+  return true;
 }
 
 export async function createDraftBrand(args: {
@@ -72,9 +74,10 @@ export async function createDraftBrand(args: {
   userId: string;
   seed?: string | null;
   url?: string | null;
+  name?: string | null;
 }) {
   const supabase = await createSupabaseServerClient();
-  const name = deriveBrandName(args.seed, args.url);
+  const name = args.name?.trim() || deriveBrandName(args.seed, args.url);
   // unique(org_id, slug): a second client with a similar name must not fail to be created.
   const slug = `${slugify(name) || "marque"}-${crypto.randomUUID().slice(0, 6)}`;
   const { data, error } = await supabase
@@ -83,12 +86,12 @@ export async function createDraftBrand(args: {
       org_id: args.orgId,
       name,
       slug,
-      data: { seed: args.seed ?? null, url: args.url ?? null },
+      data: { seed: args.seed ?? null, url: args.url ?? null, named: Boolean(args.name?.trim()) },
     })
     .select("*")
     .single();
   if (error) throw error;
-  return data as { id: string; name: string; slug: string; data: any };
+  return data as { id: string; name: string; slug: string; data: Record<string, unknown> };
 }
 
 export async function ensureDraftOSAndMega(args: {
@@ -96,6 +99,9 @@ export async function ensureDraftOSAndMega(args: {
   brandId: string;
   userId: string;
   corpusOrSeed: string;
+  /** What the user stated on the orientation screen: door, names. Wins over the corpus. */
+  declared?: string | null;
+  door?: Door;
 }) {
   const supabase = await createSupabaseServerClient();
 
@@ -116,14 +122,16 @@ export async function ensureDraftOSAndMega(args: {
   const { os, megaIntro, source } = await buildBrandOS({
     source: args.corpusOrSeed,
     nameHint: brand?.name ?? null,
+    declared: args.declared ?? null,
   });
+  const identity = { exists: args.door ?? "", fonts: { display: "", body: "" }, nonNegotiables: [], dated: [] };
 
   const { error: osErr } = await supabase.from("brand_os_versions").insert({
     org_id: args.orgId,
     brand_id: args.brandId,
     version: 1,
     summary: renderSummary(os),
-    canon: { ...os, generated_by: source },
+    canon: { ...os, identity, generated_by: source },
     created_by: args.userId,
   });
   if (osErr) throw osErr;
@@ -139,27 +147,47 @@ export async function ensureDraftOSAndMega(args: {
   });
   if (mpErr) throw mpErr;
 
-  // The scraper only knows the hostname; the analysis usually finds the real brand name.
-  if (source === "llm" && os.name.trim()) {
+  // The scraper only knows the hostname; the analysis usually finds the real brand name. A name the user typed stays.
+  const named = Boolean(((brand as { data?: { named?: boolean } } | null)?.data as { named?: boolean } | undefined)?.named);
+  if (source === "llm" && os.name.trim() && !named) {
     await supabase.from("brands").update({ name: os.name.trim() }).eq("id", args.brandId);
   }
 }
 
-export async function updateOSAndMega(args: { brandId: string; summary: string }) {
+/**
+ * The questionnaire corrects the draft in place: before validation the Brand OS is a working copy,
+ * not history. After validation every change goes through the expert and creates a version.
+ */
+export async function saveCanonDraft(brandId: string, patch: (canon: BrandOS) => BrandOS): Promise<boolean> {
   const supabase = await createSupabaseServerClient();
-  // The summary is the user-facing, editable truth. The structured canon and the
-  // mega-prompt stay: the image prompt composer reads the summary with priority.
-  const { error } = await supabase
-    .from("brand_os_versions")
-    .update({ summary: args.summary })
-    .eq("brand_id", args.brandId)
-    .eq("version", 1);
+  const { data: row } = await supabase.from("brand_os_versions").select("id,canon").eq("brand_id", brandId).order("version", { ascending: false }).limit(1).maybeSingle();
+  if (!row || !isBrandOS(row.canon)) return false;
+  const extra = row.canon as BrandOS & { generated_by?: string };
+  const next = { ...patch(row.canon), generated_by: extra.generated_by };
+  const { error } = await supabase.from("brand_os_versions").update({ canon: next, summary: renderSummary(next) }).eq("id", row.id);
   if (error) throw error;
+  return true;
 }
 
-export async function keepOut(outId: string) {
+/** The gate opens: the client's Brand OS is validated (v1), the engines may run. */
+export async function validateBrand(args: { brandId: string; sessionId: string }) {
   const supabase = await createSupabaseServerClient();
-  await supabase.from("outs").update({ status: "ready" }).eq("id", outId);
+  const { error } = await supabase.from("brands").update({ validated_at: new Date().toISOString() }).eq("id", args.brandId);
+  // Before migration 0011 the column does not exist: the gate is simply not enforced.
+  if (error && !isMissingColumn(error)) throw error;
+  await markOnboardingCompleted(args.sessionId);
+}
+
+/** Stores the logo dropped during onboarding (already in Storage) on the brand, after checking the path is the brand's own. */
+export async function saveBrandLogo(brandId: string, storagePath: string): Promise<{ ok: boolean; url: string | null }> {
+  if (!storagePath.startsWith(`brands/${brandId}/logo/`) || !/\.(png|jpg|webp|svg)$/i.test(storagePath)) return { ok: false, url: null };
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/outs/${storagePath}`;
+  const supabase = await createSupabaseServerClient();
+  const { data: brand } = await supabase.from("brands").select("data").eq("id", brandId).maybeSingle();
+  const data = { ...((brand?.data as Record<string, unknown> | null) ?? {}), logo: { path: storagePath, url } };
+  const { error } = await supabase.from("brands").update({ data }).eq("id", brandId);
+  if (error) throw error;
+  return { ok: true, url };
 }
 
 export async function markOnboardingCompleted(sessionId: string) {
@@ -271,7 +299,7 @@ export async function requireOnboardingBrand() {
 export async function getOnboardingBrandOS(brandId: string) {
   const supabase = await createSupabaseServerClient();
   const [{ data: brand }, { data: os }] = await Promise.all([
-    supabase.from("brands").select("name").eq("id", brandId).maybeSingle(),
+    supabase.from("brands").select("name,data").eq("id", brandId).maybeSingle(),
     supabase
       .from("brand_os_versions")
       .select("summary,canon")
@@ -281,10 +309,12 @@ export async function getOnboardingBrandOS(brandId: string) {
       .maybeSingle(),
   ]);
   const canon: (BrandOS & { generated_by?: string }) | null = isBrandOS(os?.canon) ? os.canon : null;
+  const data = (brand?.data ?? {}) as { logo?: { url?: string }; site?: { logo?: string | null } };
   return {
     name: (brand?.name as string | undefined) ?? "votre marque",
     summary: (os?.summary as string | undefined) ?? "",
     canon,
     color: brandColorFromPalette(canon?.visual.palette),
+    logo: data.logo?.url ?? data.site?.logo ?? null,
   };
 }

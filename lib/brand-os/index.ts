@@ -37,6 +37,7 @@ async function withFallback<T>(label: string, run: () => Promise<T>, fallback: (
 export async function buildBrandOS(args: {
   source: string;
   nameHint?: string | null;
+  declared?: string | null;
 }): Promise<BrandOSResult> {
   const toResult = (raw: BrandOS & { mega_intro: string }, source: "llm" | "fallback") => {
     const { mega_intro, ...os } = raw;
@@ -52,7 +53,8 @@ export async function buildBrandOS(args: {
           user: analysisUserMessage(args),
           schemaName: "brand_os",
           schema: BRAND_OS_SCHEMA,
-          maxTokens: 2500,
+          maxTokens: 4000,
+          timeoutMs: 90_000,
         }),
         "llm"
       ),

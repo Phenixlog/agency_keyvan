@@ -26,7 +26,8 @@ import {
 } from "@/lib/calendar";
 import { isLlmConfigured } from "@/lib/llm/openrouter";
 import { outImageUrl } from "@/lib/outs";
-import { getWorkspace } from "@/lib/workspace";
+import { getWorkspace, isValidated } from "@/lib/workspace";
+import { ValidationGate } from "@/components/app/ValidationGate";
 import { accept, changeStatus, discard, edit, plan, propose, remove, share, unshare, writeCaption } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +78,8 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
       </Empty>
     );
   }
+
+  if (!isValidated(brand)) return <ValidationGate brandName={brand.name} feature="Le calendrier" />;
 
   const today = toDay(new Date());
   const selectedDay = jour && isValidDay(jour) ? jour : null;

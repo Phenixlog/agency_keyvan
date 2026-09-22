@@ -11,7 +11,8 @@ import { ASPECT_RATIOS, FORMAT_FAMILIES, IMAGE_FORMATS, OFFERED_FORMATS } from "
 import { PROPOSALS_PER_BRIEF } from "@/lib/jobs/engine";
 import { isStagedCreation, outImageUrl, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getWorkspace } from "@/lib/workspace";
+import { getWorkspace, isValidated } from "@/lib/workspace";
+import { ValidationGate } from "@/components/app/ValidationGate";
 import { createProposals, removeAsset, retouch, setStatus } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function StudioPage({
 }) {
   const { brand, os, mega } = await getWorkspace();
   if (!brand) redirect("/app/clients");
+  if (!isValidated(brand)) return <ValidationGate brandName={brand.name} feature="Le Studio" />;
   const { vue, focus, lot, brief: suggestedBrief, ref } = await searchParams;
   const library = vue === "phototheque";
   const view: View = vue && vue in VIEWS ? (vue as View) : "actives";
