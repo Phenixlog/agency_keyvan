@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       userId = data.user.id;
       userEmail = data.user.email ?? undefined;
     }
-  } else if (tokenHash && (typeParam === "email" || typeParam === "signup" || typeParam === "magiclink")) {
+  } else if (tokenHash && (typeParam === "email" || typeParam === "signup" || typeParam === "magiclink" || typeParam === "invite")) {
     // Handle older confirmation links with token_hash + type=email|signup|magiclink
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,

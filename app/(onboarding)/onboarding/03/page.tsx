@@ -4,6 +4,7 @@ import { Step } from "@/components/onboarding/Step";
 import { Meta, Notice } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { isLlmConfigured } from "@/lib/llm/openrouter";
+import { logoDeclaration, readLogo } from "@/lib/logo-read";
 import { ensureDraftOSAndMega, requireOnboardingBrand, siteColorsOf } from "@/lib/onboarding";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ const WHAT_WE_EXTRACT = [
   ["Entreprise et offre", "ce qu’elle vend, les bénéfices, l’objectif à 90 jours"],
   ["Publics", "jusqu’à trois : qui, désir, objection, preuve"],
   ["Voix", "ton, curseurs, mots imposés et interdits, tutoiement"],
-  ["Direction visuelle", "palette codée, style d’image, ambiance, interdits"],
+  ["Direction visuelle", "palette codée (lue sur le site et sur le logo), style d’image, ambiance, interdits"],
   ["Offres, preuves, canaux", "ce qu’on peut affirmer, et où le dire"],
 ] as const;
 
@@ -30,12 +31,15 @@ export default async function OB03() {
     const source = [session.seed, session.data.scrape?.corpus].filter(Boolean).join("\n\n");
     const door = session.data.door ?? "oui";
     const siteColors = await siteColorsOf(brandId);
+    // The logo is looked at, not just mentioned: for a brand with nothing else, it IS the identity.
+    const logo = session.data.logo?.url ? await readLogo(session.data.logo.url) : null;
     const declared = [
       session.data.internal_name ? `Nom du client : ${session.data.internal_name}` : "",
       siteColors.length ? `Couleurs réellement utilisées par le site (lues dans son CSS, par fréquence) : ${siteColors.join(", ")}. La palette DOIT reprendre ces codes tels quels (nomme-les), sans en inventer d'autres.` : "",
       session.data.display_name ? `Nom commercial : ${session.data.display_name}` : "",
       `Identité visuelle : ${DOOR_LINE[door]}`,
       session.data.logo ? "Un logo a été déposé." : "",
+      logoDeclaration(logo),
     ]
       .filter(Boolean)
       .join("\n");
