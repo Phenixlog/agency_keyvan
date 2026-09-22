@@ -23,15 +23,20 @@ import {
 
 export * from "@/lib/brand-os/model";
 
-export type BrandOSResult = { os: BrandOS; megaIntro: string; source: "llm" | "fallback" };
+export type BrandOSResult = { os: BrandOS; megaIntro: string; source: "llm" | "fallback"; /** Why the core analysis fell back, raw, for the screen to translate. */ failure?: string | null };
 
 /** Every LLM step degrades to a deterministic result: generation must never block on the LLM. */
-async function withFallback<T>(label: string, run: () => Promise<T>, fallback: () => T): Promise<T> {
-  if (!isLlmConfigured()) return fallback();
+async function withFallback<T>(label: string, run: () => Promise<T>, fallback: () => T, notes?: string[]): Promise<T> {
+  if (!isLlmConfigured()) {
+    notes?.push("OPENROUTER_API_KEY manquante");
+    return fallback();
+  }
   try {
     return await run();
   } catch (e) {
-    console.error(`[brand-os] ${label} : repli déterministe —`, e instanceof Error ? e.message : e);
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[brand-os] ${label} : repli déterministe —`, message);
+    notes?.push(message);
     return fallback();
   }
 }
@@ -48,6 +53,7 @@ export async function buildBrandOS(args: {
     return { os, megaIntro: mega_intro, source };
   };
   const user = analysisUserMessage(args);
+  const notes: string[] = [];
   // The core (positioning, voice, visual) and the questionnaire blocks are asked in parallel:
   // one strict schema for everything is too large for the provider. A failed extension only
   // leaves its blocks empty; a failed core falls back to the deterministic draft.
@@ -72,13 +78,14 @@ export async function buildBrandOS(args: {
         }),
         "llm"
       ),
-    () => toResult(fallbackBrandOS(args.source, args.nameHint), "fallback")
+    () => toResult(fallbackBrandOS(args.source, args.nameHint), "fallback"),
+    notes
   );
   const extra = await extension;
-  if (!extra) return result;
+  if (!extra) return { ...result, failure: notes[0] ?? null };
   const { voice: voiceExtra, ...blocks } = extra;
   const graphic = blocks.graphic ? alignGraphicToPalette(blocks.graphic, result.os.visual.palette) : undefined;
-  return { ...result, os: { ...result.os, ...blocks, ...(graphic ? { graphic } : {}), voice: { says: [], never: [], ...result.os.voice, ...voiceExtra } } };
+  return { ...result, failure: notes[0] ?? null, os: { ...result.os, ...blocks, ...(graphic ? { graphic } : {}), voice: { says: [], never: [], ...result.os.voice, ...voiceExtra } } };
 }
 
 export async function composeImagePrompt(args: {

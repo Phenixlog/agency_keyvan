@@ -5,6 +5,7 @@ import { getOrCreateDefaultOrgForUser } from "@/lib/orgs";
  * The people of an organisation. Membership is one row in org_members; the e-mail lives in auth.
  * Inviting someone creates their account through Supabase (they receive the invitation e-mail) and
  * their membership at once, so their first login lands in this organisation and not in a new one.
+ * No magic link (Keyvan): the invited person chooses a password on arrival and logs in like anyone.
  */
 export type Member = { userId: string; email: string; role: string; status: string; joinedAt: string | null };
 
@@ -42,7 +43,8 @@ export async function inviteMember(args: { by: { id: string; email?: string | nu
   const admin = createSupabaseAdminClient();
   // New account: Supabase sends the invitation e-mail; the link comes back to /auth/callback with a session.
   let userId: string | null = null;
-  const invited = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: `${args.origin}/auth/callback` });
+  // needs_password: the invitation link opens the app on "choose your password"; then it is an ordinary login.
+  const invited = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: `${args.origin}/auth/callback`, data: { needs_password: true } });
   if (!invited.error && invited.data?.user) userId = invited.data.user.id;
   else {
     // Already registered: no e-mail is sent by Supabase in that case, the membership is enough.
@@ -50,13 +52,14 @@ export async function inviteMember(args: { by: { id: string; email?: string | nu
     if (!existing) return { ok: false, message: `Invitation impossible : ${invited.error?.message ?? "compte introuvable"}.` };
     userId = existing;
   }
-  const { error } = await admin.from("org_members").insert({ org_id: orgId, user_id: userId, role: "member", status: "active", joined_at: new Date().toISOString() });
+  // The same access as the owner (Keyvan): every client, every screen, and the right to invite in turn.
+  const { error } = await admin.from("org_members").insert({ org_id: orgId, user_id: userId, role: "admin", status: "active", joined_at: new Date().toISOString() });
   if (error && !String(error.message || "").includes("duplicate key")) return { ok: false, message: `Invitation impossible : ${error.message}` };
   return {
     ok: true,
     message: invited.error
-      ? `${email} avait déjà un compte : il fait maintenant partie de l’équipe et peut se connecter par lien magique.`
-      : `Invitation envoyée à ${email}. Le lien reçu ouvre directement l’atelier ; ensuite, connexion par lien magique.`,
+      ? `${email} avait déjà un compte : il fait maintenant partie de l’équipe, avec le même accès que vous.`
+      : `Invitation envoyée à ${email}. Le lien reçu lui fait choisir son mot de passe, puis ouvre l’atelier avec le même accès que vous.`,
   };
 }
 

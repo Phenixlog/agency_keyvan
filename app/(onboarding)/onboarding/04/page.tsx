@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { Step } from "@/components/onboarding/Step";
@@ -47,7 +48,10 @@ export default async function OB04() {
       intro="Tout est prérempli. Corrigez ce qui sonne faux, effacez ce qui est faux, passez le reste. Rien n’est obligatoire ici."
     >
       {canon.generated_by === "fallback" ? (
-        <Notice tone="warning">Ce brouillon a été produit sans analyse IA : les champs sont à compléter à la main.</Notice>
+        <Notice tone="warning">
+          Ce brouillon a été produit sans analyse IA. {(canon as { analysis_note?: string | null }).analysis_note ?? ""}{" "}
+          <Link href="/onboarding/03" className="font-semibold underline underline-offset-4">Relancer l’analyse</Link>, ou complétez les champs à la main.
+        </Notice>
       ) : null}
       <form action={save} className="grid gap-8">
         <section className="grid gap-4">

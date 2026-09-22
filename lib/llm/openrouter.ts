@@ -134,3 +134,13 @@ export function extractJson(content: string): string {
   const end = text.lastIndexOf("}");
   return start >= 0 && end > start ? text.slice(start, end + 1) : text;
 }
+
+/** What went wrong, said to the user: the credit is the usual culprit, and nobody reads a 402. */
+export function humaniseLlmFailure(message: string | null | undefined): string {
+  const m = message ?? "";
+  if (/402|more credits|afford|insufficient/i.test(m)) return "Le crédit OpenRouter est épuisé ou la limite de la clé est atteinte : rechargez le compte, puis relancez.";
+  if (/429|rate|saturé/i.test(m)) return "Le service de texte est saturé : réessayez dans une minute.";
+  if (/OPENROUTER_API_KEY/i.test(m)) return "L’analyse IA n’est pas configurée sur ce serveur.";
+  if (/timeout|abort|tronqu/i.test(m)) return "Le modèle n’a pas répondu à temps : relancez.";
+  return "Le service de texte a refusé la demande : relancez ; si cela persiste, regardez les journaux du serveur.";
+}

@@ -59,7 +59,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           <CardHeader title={<span className="flex items-center gap-2"><Mail size={18} strokeWidth={1.75} /> Inviter</span>} />
           {canInvite ? (
             <form action={invite} className="mt-4 grid gap-4">
-              <Field label="Adresse e-mail" hint="La personne reçoit un lien qui ouvre l’atelier. Ensuite, elle se connecte par lien magique, sans mot de passe.">
+              <Field label="Adresse e-mail" hint="La personne reçoit un e-mail d’invitation, choisit son mot de passe, et obtient le même accès que vous : tous les clients, tous les écrans.">
                 <Input name="email" type="email" required placeholder="associe@entreprise.fr" autoComplete="off" />
               </Field>
               <SubmitButton pendingLabel="Envoi de l’invitation…" className="justify-self-start">

@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     // Handle older confirmation links with token_hash + type=email|signup|magiclink
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
-      type: (typeParam as any) || "email",
+      type: (typeParam || "email") as "email" | "signup" | "magiclink" | "invite",
       email,
     });
     if (!error) {
@@ -52,10 +52,26 @@ export async function GET(req: NextRequest) {
   }
 
   // Ensure org + membership (idempotent)
+  let orgId: string | null = null;
   try {
-    await getOrCreateDefaultOrgForUser(userId, userEmail);
+    orgId = await getOrCreateDefaultOrgForUser(userId, userEmail);
   } catch {
     // Non-fatal — continue
+  }
+
+  // An invited colleague arrives here from the invitation e-mail: first thing, a password of their own.
+  const { data: who } = await supabase.auth.getUser();
+  if (who?.user?.user_metadata?.needs_password) {
+    res.headers.set("Location", new URL("/auth/mot-de-passe", req.url).toString());
+    return res;
+  }
+  // An organisation that already has clients is a workshop to enter, not an onboarding to start.
+  if (orgId) {
+    const { data: brands } = await supabase.from("brands").select("id").eq("org_id", orgId).limit(1);
+    if (brands?.length) {
+      res.headers.set("Location", new URL("/app", req.url).toString());
+      return res;
+    }
   }
 
   // Decide where to go next:

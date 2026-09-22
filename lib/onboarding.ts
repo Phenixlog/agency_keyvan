@@ -1,3 +1,4 @@
+import { humaniseLlmFailure, isLlmConfigured } from "@/lib/llm/openrouter";
 import { redirect } from "next/navigation";
 import { isMissingColumn } from "@/lib/db-errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -109,47 +110,64 @@ export async function ensureDraftOSAndMega(args: {
 }) {
   const supabase = await createSupabaseServerClient();
 
-  // The analysis costs an LLM call: never redo it when v1 already exists (back button, double submit).
+  // The analysis costs an LLM call: never redo it when v1 already exists (back button, double submit)…
+  // unless v1 is the deterministic fallback (seen live: OpenRouter credit exhausted): then "Analyser"
+  // again must really analyse, and v1 is rewritten in place, as the draft it still is.
   const { data: existing } = await supabase
     .from("brand_os_versions")
-    .select("id")
+    .select("id,version,canon")
     .eq("brand_id", args.brandId)
+    .order("version", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (existing) return;
+  const previous = (existing?.canon ?? null) as (BrandOS & { generated_by?: string }) | null;
+  const redo = Boolean(existing && existing.version === 1 && previous?.generated_by === "fallback" && isLlmConfigured());
+  if (existing && !redo) return;
 
   const { data: brand } = await supabase
     .from("brands")
     .select("name")
     .eq("id", args.brandId)
     .maybeSingle();
-  const { os, megaIntro, source } = await buildBrandOS({
+  const { os, megaIntro, source, failure } = await buildBrandOS({
     source: args.corpusOrSeed,
     nameHint: brand?.name ?? null,
     declared: args.declared ?? null,
   });
   const identity = { exists: args.door ?? "", fonts: { display: "", body: "" }, nonNegotiables: [], dated: [] };
+  // Why the draft is empty, kept with it so the next screen can say it and offer to relaunch.
+  const canon = { ...os, identity, generated_by: source, analysis_note: source === "fallback" ? humaniseLlmFailure(failure) : null };
 
-  const { error: osErr } = await supabase.from("brand_os_versions").insert({
-    org_id: args.orgId,
-    brand_id: args.brandId,
-    version: 1,
-    summary: renderSummary(os),
-    canon: { ...os, identity, generated_by: source },
-    created_by: args.userId,
-  });
-  if (osErr) throw osErr;
+  if (redo && existing) {
+    const { error: osErr } = await supabase.from("brand_os_versions").update({ summary: renderSummary(os), canon }).eq("id", existing.id);
+    if (osErr) throw osErr;
+  } else {
+    const { error: osErr } = await supabase.from("brand_os_versions").insert({
+      org_id: args.orgId,
+      brand_id: args.brandId,
+      version: 1,
+      summary: renderSummary(os),
+      canon,
+      created_by: args.userId,
+    });
+    if (osErr) throw osErr;
+  }
 
   const megaContent: MegaPrompt = { intro: megaIntro, rules: [], changelog: [] };
-  const { error: mpErr } = await supabase.from("mega_prompts").insert({
-    org_id: args.orgId,
-    brand_id: args.brandId,
-    title: "Mega-prompt v1",
-    content: megaContent,
-    version: 1,
-    created_by: args.userId,
-  });
-  if (mpErr) throw mpErr;
+  if (redo) {
+    const { error: mpErr } = await supabase.from("mega_prompts").update({ content: megaContent }).eq("brand_id", args.brandId).eq("version", 1);
+    if (mpErr) throw mpErr;
+  } else {
+    const { error: mpErr } = await supabase.from("mega_prompts").insert({
+      org_id: args.orgId,
+      brand_id: args.brandId,
+      title: "Mega-prompt v1",
+      content: megaContent,
+      version: 1,
+      created_by: args.userId,
+    });
+    if (mpErr) throw mpErr;
+  }
 
   // The scraper only knows the hostname; the analysis usually finds the real brand name. A name the user typed stays.
   const named = Boolean(((brand as { data?: { named?: boolean } } | null)?.data as { named?: boolean } | undefined)?.named);
@@ -166,8 +184,8 @@ export async function saveCanonDraft(brandId: string, patch: (canon: BrandOS) =>
   const supabase = await createSupabaseServerClient();
   const { data: row } = await supabase.from("brand_os_versions").select("id,canon").eq("brand_id", brandId).order("version", { ascending: false }).limit(1).maybeSingle();
   if (!row || !isBrandOS(row.canon)) return false;
-  const extra = row.canon as BrandOS & { generated_by?: string };
-  const next = { ...patch(row.canon), generated_by: extra.generated_by };
+  const extra = row.canon as BrandOS & { generated_by?: string; analysis_note?: string | null };
+  const next = { ...patch(row.canon), generated_by: extra.generated_by, analysis_note: extra.analysis_note ?? null };
   const { error } = await supabase.from("brand_os_versions").update({ canon: next, summary: renderSummary(next) }).eq("id", row.id);
   if (error) throw error;
   return true;
