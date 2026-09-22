@@ -50,6 +50,34 @@ export type BrandGraphic = {
 };
 
 /** Sans système graphique posé : dérivé de la palette, le reste sobre. Jamais stocké, calculé à la génération. */
+/**
+ * The graphic system is written in a separate call from the palette: its background codes can drift by a
+ * few values. Snap each background to the closest palette colour, so the feed and the board agree.
+ */
+export function alignGraphicToPalette(graphic: BrandGraphic, palette: readonly string[]): BrandGraphic {
+  const hexes = palette.map((c) => c.match(/#[0-9a-f]{6}\b/i)?.[0]?.toUpperCase()).filter((h): h is string => Boolean(h));
+  if (!hexes.length) return graphic;
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const snap = (value: string) => {
+    const hex = value.match(/#[0-9a-f]{6}\b/i)?.[0]?.toUpperCase();
+    if (!hex) return value;
+    const [r, g, b] = rgb(hex);
+    let best = hex;
+    let bestDistance = Infinity;
+    for (const candidate of hexes) {
+      const [cr, cg, cb] = rgb(candidate);
+      const distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = candidate;
+      }
+    }
+    // Only a near miss is snapped (≈ 40 per channel): a deliberately different background stays.
+    return bestDistance <= 3 * 40 * 40 ? value.replace(/#[0-9a-f]{6}\b/i, best) : value;
+  };
+  return { ...graphic, backgrounds: { brand: snap(graphic.backgrounds.brand), light: snap(graphic.backgrounds.light), dark: snap(graphic.backgrounds.dark) } };
+}
+
 export function fallbackGraphic(os: BrandOS | null): BrandGraphic {
   const palette = os?.visual.palette ?? [];
   const hexes = palette.map((c) => c.match(/#[0-9a-f]{6}\b/i)?.[0]).filter((h): h is string => Boolean(h));

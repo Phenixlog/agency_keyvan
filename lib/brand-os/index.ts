@@ -8,6 +8,7 @@ import {
   IMAGE_PROMPT_SYSTEM,
   RULES_SCHEMA,
   RULES_SYSTEM,
+  alignGraphicToPalette,
   analysisUserMessage,
   fallbackBrandOS,
   fallbackEditPrompt,
@@ -76,7 +77,8 @@ export async function buildBrandOS(args: {
   const extra = await extension;
   if (!extra) return result;
   const { voice: voiceExtra, ...blocks } = extra;
-  return { ...result, os: { ...result.os, ...blocks, voice: { says: [], never: [], ...result.os.voice, ...voiceExtra } } };
+  const graphic = blocks.graphic ? alignGraphicToPalette(blocks.graphic, result.os.visual.palette) : undefined;
+  return { ...result, os: { ...result.os, ...blocks, ...(graphic ? { graphic } : {}), voice: { says: [], never: [], ...result.os.voice, ...voiceExtra } } };
 }
 
 export async function composeImagePrompt(args: {
