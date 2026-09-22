@@ -38,10 +38,14 @@ export type EntryWithOut = CalendarEntry & { out: { id: string; payload: OutPayl
 const BASE_COLUMNS = "id,out_id,scheduled_on,channel,caption,status,out:outs(id,payload)";
 /** With migration 0009: the angle, the visual still to make, and what the end client said. */
 const ENTRY_COLUMNS = `${BASE_COLUMNS},angle,idea,client_status,client_comment,client_reviewed_at`;
+/** Migration 0012: the planned tile (kind, headline, background). */
+const CONTENT_COLUMNS = `${ENTRY_COLUMNS},content`;
 
 type Read<T> = PromiseLike<{ data: T; error: { code?: string; message: string } | null }>;
 /** Before migration 0009 the new columns do not exist: read again without them rather than break the calendar. */
 async function readEntries<T>(build: (columns: string) => Read<T>) {
+  const withContent = await build(CONTENT_COLUMNS);
+  if (!isMissingColumn(withContent.error)) return withContent;
   const full = await build(ENTRY_COLUMNS);
   return isMissingColumn(full.error) ? build(BASE_COLUMNS) : full;
 }
@@ -216,12 +220,14 @@ export async function updateEntry(args: {
  * so the calendar fills itself; the user swaps it for another proposal with the picker if they prefer.
  * Never overwrites a visual already chosen.
  */
-export async function attachLotToEntry(args: { brandId: string; entryId: string; batchId: string }): Promise<"ok" | "skipped"> {
+export async function attachLotToEntry(args: { brandId: string; entryId: string; batchId: string; background?: string | null }): Promise<"ok" | "skipped"> {
   const supabase = await createSupabaseServerClient();
   const { data: entry } = await supabase.from("calendar_entries").select("id,out_id").eq("id", args.entryId).eq("brand_id", args.brandId).maybeSingle();
   if (!entry || entry.out_id) return "skipped";
   const { data: outs } = await supabase.from("outs").select("id,payload,created_at").eq("brand_id", args.brandId).order("created_at", { ascending: true }).limit(60);
-  const first = (outs ?? []).find((out) => (out.payload as { batch_id?: string } | null)?.batch_id === args.batchId);
+  const lot = (outs ?? []).filter((out) => (out.payload as { batch_id?: string } | null)?.batch_id === args.batchId);
+  // The planned background wins (the checkerboard of the month), else the first proposal.
+  const first = lot.find((out) => args.background && (out.payload as { tile?: { background?: string } } | null)?.tile?.background === args.background) ?? lot[0];
   if (!first) return "skipped";
   const { error } = await supabase.from("calendar_entries").update({ out_id: first.id }).eq("id", args.entryId).eq("brand_id", args.brandId);
   if (error) throw error;
@@ -316,19 +322,20 @@ export async function proposeMonth(args: {
   }
   if (!plan.length) return { status: "nothing" };
 
-  const { error } = await supabase.from("calendar_entries").insert(
-    plan.map((item) => ({
-      org_id: args.brand.org_id,
-      brand_id: args.brand.id,
-      out_id: item.creation ? available[item.creation - 1].id : null,
-      scheduled_on: item.day,
-      channel: item.channel,
-      status: "proposed",
-      angle: item.angle || null,
-      idea: item.idea || null,
-      created_by: args.userId,
-    }))
-  );
+  const rows = plan.map((item) => ({
+    org_id: args.brand.org_id,
+    brand_id: args.brand.id,
+    out_id: item.creation ? available[item.creation - 1].id : null,
+    scheduled_on: item.day,
+    channel: item.channel,
+    status: "proposed",
+    angle: item.angle || null,
+    idea: item.idea || null,
+    created_by: args.userId,
+  }));
+  let { error } = await supabase.from("calendar_entries").insert(rows.map((row, i) => ({ ...row, content: plan[i]!.content })));
+  // Before migration 0012 the planned tile has nowhere to live: the entry keeps its idea, the Studio starts from it.
+  if (isMissingColumn(error)) ({ error } = await supabase.from("calendar_entries").insert(rows));
   // 23514: the status check of 0004 does not know "proposed" yet.
   if (isMissingColumn(error) || error?.code === "23514") return { status: "migration-needed" };
   if (error) throw error;

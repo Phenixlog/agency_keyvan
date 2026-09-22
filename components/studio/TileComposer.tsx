@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, PenLine, RefreshCw, Type } from "lucide-react";
 import type { TileKind, TilePlan } from "@/lib/tiles/model";
 
@@ -13,9 +13,9 @@ const CHIP_INNER = "inline-flex rounded-pill bg-card px-3 py-1 text-small text-m
  * kind of tile, shown in editable fields before any image is paid for (Keyvan: prices and names must be
  * right first). Submits `tile_mode`, `tile_kind` and the four text fields; the format comes from the picker.
  */
-export function TileComposer({ kinds, format, customUse, hasLogo }: { kinds: Record<string, { label: string; hint: string }>; format: string; customUse: string; hasLogo: boolean }) {
-  const [withText, setWithText] = useState(false);
-  const [kind, setKind] = useState<TileKind>("hook_photo");
+export function TileComposer({ kinds, format, customUse, hasLogo, initial = null }: { kinds: Record<string, { label: string; hint: string }>; format: string; customUse: string; hasLogo: boolean; initial?: { kind: TileKind; headline: string } | null }) {
+  const [withText, setWithText] = useState(Boolean(initial));
+  const [kind, setKind] = useState<TileKind>(initial?.kind ?? "hook_photo");
   const [plan, setPlan] = useState<TilePlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function TileComposer({ kinds, format, customUse, hasLogo }: { kinds: Rec
     return field instanceof HTMLTextAreaElement ? field.value : "";
   }
 
-  async function draft(nextKind: TileKind) {
+  async function draft(nextKind: TileKind, headline?: string) {
     controller.current?.abort();
     controller.current = new AbortController();
     setLoading(true);
@@ -39,7 +39,7 @@ export function TileComposer({ kinds, format, customUse, hasLogo }: { kinds: Rec
         method: "POST",
         signal: controller.current.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: nextKind, brief: currentBrief(), format, customUse }),
+        body: JSON.stringify({ kind: nextKind, brief: currentBrief(), format, customUse, headline: headline ?? "" }),
       });
       if (!res.ok) throw new Error("indisponible");
       const data = (await res.json()) as { plan: TilePlan; source: "llm" | "fallback" };
@@ -51,6 +51,17 @@ export function TileComposer({ kinds, format, customUse, hasLogo }: { kinds: Rec
       setLoading(false);
     }
   }
+
+  // Planned by the calendar: the headline is set, the writer completes the rest as soon as the form is there.
+  useEffect(() => {
+    // Deferred by a tick: the first render is the form itself, the writer starts right after.
+    const timer = initial ? setTimeout(() => void draft(initial.kind, initial.headline), 0) : null;
+    return () => {
+      if (timer) clearTimeout(timer);
+      controller.current?.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div ref={root} className="grid gap-3">

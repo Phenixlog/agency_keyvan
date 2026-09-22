@@ -30,8 +30,9 @@ import {
 export * from "@/lib/tiles/model";
 
 /** The tile's words, in the brand's voice — shown to the user before any image is paid for. */
-export async function planTile(args: { os: BrandOS | null; summary: string; kind: TileKind; brief: string; formatLabel: string; surface?: Surface }): Promise<{ plan: TilePlan; source: "llm" | "fallback" }> {
-  if (!isLlmConfigured()) return { plan: fallbackTilePlan(args.brief), source: "fallback" };
+export async function planTile(args: { os: BrandOS | null; summary: string; kind: TileKind; brief: string; formatLabel: string; surface?: Surface; headline?: string }): Promise<{ plan: TilePlan; source: "llm" | "fallback" }> {
+  const keep = (plan: TilePlan): TilePlan => (args.headline ? { ...plan, headline: args.headline } : plan);
+  if (!isLlmConfigured()) return { plan: keep(fallbackTilePlan(args.brief)), source: "fallback" };
   try {
     const raw = await chatJson<unknown>({
       model: MODEL_FAST,
@@ -45,10 +46,10 @@ export async function planTile(args: { os: BrandOS | null; summary: string; kind
     });
     const plan = parseTilePlan(raw);
     if (!plan) throw new Error("plan illisible");
-    return { plan, source: "llm" };
+    return { plan: keep(plan), source: "llm" };
   } catch (e) {
     console.error("[tiles] rédaction : repli —", e instanceof Error ? e.message : e);
-    return { plan: fallbackTilePlan(args.brief), source: "fallback" };
+    return { plan: keep(fallbackTilePlan(args.brief)), source: "fallback" };
   }
 }
 

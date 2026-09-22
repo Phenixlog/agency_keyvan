@@ -1,3 +1,4 @@
+import { TILE_KINDS } from "@/lib/tiles/model";
 import Link from "next/link";
 import { Ban, Check, ChevronLeft, ChevronRight, Download, ImageOff, MessageSquareText, PenLine, Settings2, Sparkles, Trash2, TextCursorInput, Undo2, Wand2 } from "lucide-react";
 import { MigrationNotice } from "@/components/app/MigrationNotice";
@@ -401,7 +402,17 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
 const isReady = (entry: EntryWithOut) => Boolean(entry.out && entry.caption);
 
 /** The Studio, with the idea (or the angle) as the brief, and the planned day so the creation can be attached back. */
-const studioHref = (entry: EntryWithOut) => `/app/studio?brief=${encodeURIComponent(entry.idea || entry.angle || "")}&entry=${entry.id}`;
+/** Into the Studio, ready to draw: the planned tile (kind, headline, background) travels with the brief and the slot. */
+const studioHref = (entry: EntryWithOut) => {
+  const params = new URLSearchParams({ brief: entry.idea || entry.angle || "", entry: entry.id });
+  if (entry.content) {
+    params.set("tuile", entry.content.kind);
+    params.set("titre", entry.content.headline);
+    params.set("fond", entry.content.background);
+  }
+  return `/app/studio?${params.toString()}`;
+};
+const tileLine = (entry: EntryWithOut) => (entry.content ? `${TILE_KINDS[entry.content.kind]?.label ?? "Tuile"} · « ${entry.content.headline} »` : "");
 
 /** What is still missing before publishing: nothing to say when all is there. */
 function Readiness({ entry, onBrand = false }: { entry: EntryWithOut; onBrand?: boolean }) {
@@ -505,7 +516,7 @@ function EntryRow({ entry, month, kept, llmReady }: { entry: EntryWithOut; month
           {entry.client_status === "approved" ? <Tag tone="success">Validée par le client</Tag> : null}
           {entry.client_status === "changes" ? <Tag tone="danger">Changement demandé</Tag> : null}
         </span>
-        {entry.angle ? <Meta>Angle · {entry.angle}</Meta> : null}
+        {entry.angle ? <Meta>Angle · {entry.angle}{entry.content && !entry.out ? ` · ${tileLine(entry)}` : ""}</Meta> : entry.content && !entry.out ? <Meta>{tileLine(entry)}</Meta> : null}
         {!proposed && entry.status === "planned" ? <Readiness entry={entry} /> : null}
         {entry.client_status === "changes" && entry.client_comment ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-inner bg-danger-tint px-4 py-3">
@@ -520,7 +531,7 @@ function EntryRow({ entry, month, kept, llmReady }: { entry: EntryWithOut; month
           </div>
         ) : null}
         <p className="whitespace-pre-line text-small text-mute">
-          {entry.caption || (entry.out ? entry.out.payload?.brief : entry.idea ? `Visuel à créer : ${entry.idea}` : "") || "Pas encore de légende."}
+          {entry.caption || (entry.out ? entry.out.payload?.brief : entry.content ? `Tuile à créer · ${tileLine(entry)}${entry.idea ? ` · photo : ${entry.idea}` : ""}` : entry.idea ? `Visuel à créer : ${entry.idea}` : "") || "Pas encore de légende."}
         </p>
         {mismatch ? (
           <Meta className="text-warning">

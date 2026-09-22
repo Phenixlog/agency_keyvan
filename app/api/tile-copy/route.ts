@@ -15,7 +15,9 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const body = (await req.json().catch(() => null)) as { kind?: unknown; brief?: unknown; format?: unknown; customUse?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { kind?: unknown; brief?: unknown; format?: unknown; customUse?: unknown; headline?: unknown } | null;
+  // A headline planned by the calendar is kept as is: the writer only completes around it.
+  const headline = typeof body?.headline === "string" ? body.headline.replace(/["«»]/g, "").trim().slice(0, 60) : "";
   const kind = typeof body?.kind === "string" && isTileKind(body.kind) ? body.kind : "hook_photo";
   const brief = typeof body?.brief === "string" ? body.brief.slice(0, 800) : "";
   const requested = typeof body?.format === "string" ? body.format : "";
@@ -25,6 +27,6 @@ export async function POST(req: NextRequest) {
   if (!brand) return NextResponse.json({ error: "Aucune marque active" }, { status: 409 });
 
   const spec = resolveFormat(format, format === "custom" ? { aspectRatio: "1:1", use: String(body?.customUse ?? "") } : null);
-  const result = await planTile({ os: os?.canon ?? null, summary: os?.summary ?? "", kind, brief, formatLabel: spec.label, surface: surfaceOf(spec) });
+  const result = await planTile({ os: os?.canon ?? null, summary: os?.summary ?? "", kind, brief, formatLabel: spec.label, surface: surfaceOf(spec), headline });
   return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
 }

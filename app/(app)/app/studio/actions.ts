@@ -111,7 +111,7 @@ export async function createProposals(formData: FormData) {
   });
   // Launched from a calendar day: the lot's first creation takes the slot.
   const entryId = String(formData.get("entry_id") || "");
-  const attached = /^[0-9a-f-]{36}$/i.test(entryId) ? await attachLotToEntry({ brandId: brand.id, entryId, batchId }) : "skipped";
+  const attached = /^[0-9a-f-]{36}$/i.test(entryId) ? await attachLotToEntry({ brandId: brand.id, entryId, batchId, background: String(formData.get("entry_background") || "") || null }) : "skipped";
   if (attached === "ok") revalidatePath("/app/calendrier");
   redirect(`/app/studio?lot=${batchId}${await failureParam(jobIds)}${attached === "ok" ? "&planifie=1" : ""}`);
 }
