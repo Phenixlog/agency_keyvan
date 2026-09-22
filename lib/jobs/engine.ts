@@ -46,6 +46,10 @@ type GenerationArgs = {
   tile?: { kind: TileKind; plan: TilePlan; background: Background } | null;
   /** The brand's real logo, sent as a reference so the image model reproduces it instead of inventing one. */
   logoUrl?: string | null;
+  /** Position in a feed of nine (0-based, Instagram reading order). */
+  feedIndex?: number | null;
+  /** Slide of a carousel: its position (1-based) and the total. */
+  carousel?: { index: number; total: number } | null;
 };
 
 const BACKGROUND_ROTATION: Background[] = ["brand", "light", "dark"];
@@ -81,6 +85,26 @@ async function resolveMediumGuidance(args: GenerationArgs & { format: ImageForma
   // Answers are only valid against the brief the user saw. Losing some means the brief changed in between: worth knowing.
   if (kept < given) console.warn(`[expertise] ${given - kept} réponse(s) sur ${given} ignorée(s) : absentes de la fiche « ${args.format} » en vigueur.`);
   return guidanceWithAnswers(brief, answers);
+}
+
+/** A feed of nine tiles (or a carousel's slides): one batch, every tile already planned, all in parallel. */
+export async function queueSeries(args: GenerationArgs & { format: ImageFormat }, tiles: { kind: TileKind; plan: TilePlan; background: Background }[], series: "feed" | "carousel") {
+  const batchId = crypto.randomUUID();
+  const mediumGuidance = await resolveMediumGuidance(args);
+  const results = await Promise.all(
+    tiles.map((tile, i) =>
+      queueImageGeneration({
+        ...args,
+        batchId,
+        mediumGuidance,
+        tile,
+        brief: tile.plan.headline,
+        feedIndex: series === "feed" ? i : null,
+        carousel: series === "carousel" ? { index: i + 1, total: tiles.length } : null,
+      })
+    )
+  );
+  return { batchId, jobIds: results.map((r) => r.jobId) };
 }
 
 export function queueSocialGeneration(args: GenerationArgs) {
@@ -128,6 +152,7 @@ export async function queueImageGeneration(
         hasLogo: withLogo,
         brandName: canon?.name ?? "the brand",
         direction: mediumGuidance,
+        slide: args.carousel ?? null,
       })
     : await composeImagePrompt({
     os: isBrandOS(os?.canon) ? os.canon : null,
@@ -237,6 +262,8 @@ export async function queueImageGeneration(
       // Tile with text: the words drawn, the background used, and whether the model spelled them right.
       tile: args.tile ? { kind: args.tile.kind, background: args.tile.background, copy: { headline: args.tile.plan.headline, subline: args.tile.plan.subline, caption: args.tile.plan.caption, cta: args.tile.plan.cta }, logo: withLogo } : null,
       text_check: textCheck,
+      feed_index: args.feedIndex ?? null,
+      carousel: args.carousel ?? null,
     };
     const { data: out, error: outErr } = await supabase
       .from("outs")

@@ -26,6 +26,8 @@ export type OutPayload = {
   batch_id?: string | null;
   tile?: { kind: string; background: string; copy: { headline: string; subline: string; caption: string; cta: string }; logo: boolean } | null;
   text_check?: { ok: boolean; expected: string[]; found: string[]; issues: string[] } | null;
+  feed_index?: number | null;
+  carousel?: { index: number; total: number } | null;
 };
 
 /** Subject given to the editing model when the reference is one of our own creations ("Mettre en situation"). */

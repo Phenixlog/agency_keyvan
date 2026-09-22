@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { archiveAsset, getAsset, registerAsset } from "@/lib/assets";
 import { OFFERED_FORMATS, resolveFormat, type CustomFormat, type ImageFormat } from "@/lib/brand-os";
-import { queueImageGeneration, queueProposals } from "@/lib/jobs/engine";
-import { LOGO_PLACEMENTS, isTileKind, parseTilePlan, type LogoPlacement } from "@/lib/tiles";
+import { queueImageGeneration, queueProposals, queueSeries } from "@/lib/jobs/engine";
+import { CAROUSEL_MAX, LOGO_PLACEMENTS, carouselSlideKind, isTileKind, parseCarouselPlan, parseFeedPlan, parseTilePlan, type LogoPlacement } from "@/lib/tiles";
 import { CREATION_AS_REFERENCE, outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
@@ -99,6 +99,29 @@ export async function createProposals(formData: FormData) {
     logoUrl: tile ? await brandLogo(brand.id) : null,
   });
   redirect(`/app/studio?lot=${batchId}`);
+}
+
+/**
+ * A feed of nine or a carousel, from a plan the user reviewed. The plan comes back from the browser
+ * as JSON and is parsed exactly as the model's output would be: nothing unchecked reaches the engine.
+ */
+export async function createSeries(formData: FormData) {
+  const { brand, userId } = await activeBrand();
+  const series = String(formData.get("series") || "") === "carousel" ? "carousel" : "feed";
+  let raw: unknown = null;
+  try {
+    raw = JSON.parse(String(formData.get("series_plan") || "null"));
+  } catch {
+    raw = null;
+  }
+  const { format } = requestedFormat(formData);
+  const tiles =
+    series === "feed"
+      ? parseFeedPlan({ tiles: raw }).map((t) => ({ kind: t.kind, background: t.background, plan: t }))
+      : parseCarouselPlan({ slides: raw }, Array.isArray(raw) ? Math.min(raw.length, CAROUSEL_MAX) : 5).map((plan, i, all) => ({ kind: carouselSlideKind(i, all.length), background: "brand" as const, plan }));
+  if (!tiles.length) redirect("/app/studio");
+  const { batchId } = await queueSeries({ orgId: brand.org_id, brandId: brand.id, userId, brief: null, format, logoUrl: await brandLogo(brand.id) }, tiles, series);
+  redirect(`/app/studio?lot=${batchId}${series === "feed" ? "&vue=feed" : ""}`);
 }
 
 /** One change on one creation. The brand is untouched: that is what the expert is for. */

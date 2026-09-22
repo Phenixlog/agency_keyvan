@@ -4,6 +4,8 @@ import { Archive, ArchiveRestore, CalendarPlus, Clock, Download, ImageOff, Messa
 import { formatLabel } from "@/components/app/OutTile";
 import { AssetUploader } from "@/components/studio/AssetUploader";
 import { FormatPicker } from "@/components/studio/FormatPicker";
+import { SeriesComposer } from "@/components/studio/SeriesComposer";
+import { FeedView } from "@/components/studio/FeedView";
 import { BrandCard, ButtonLink, Card, CardHeader, Empty, Field, Input, Meta, Notice, Textarea } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { ASSET_KINDS, listAssets } from "@/lib/assets";
@@ -41,6 +43,7 @@ export default async function StudioPage({
   if (!isValidated(brand)) return <ValidationGate brandName={brand.name} feature="Le Studio" />;
   const { vue, focus, lot, brief: suggestedBrief, ref } = await searchParams;
   const library = vue === "phototheque";
+  const feedView = vue === "feed";
   const view: View = vue && vue in VIEWS ? (vue as View) : "actives";
 
   const supabase = await createSupabaseServerClient();
@@ -61,8 +64,20 @@ export default async function StudioPage({
   const { data: brandRow } = await supabase.from("brands").select("data").eq("id", brand.id).maybeSingle();
   const brandData = (brandRow?.data ?? {}) as { logo?: { url?: string }; site?: { logo?: string | null } };
   const logoUrl = brandData.logo?.url ?? brandData.site?.logo ?? null;
+  // A series (feed, carousel) reads in its planned order, not in the order the images came back.
+  const position = (out: { payload: unknown }) => {
+    const p = out.payload as OutPayload | null;
+    return p?.carousel?.index ?? (p?.feed_index != null ? p.feed_index + 1 : null);
+  };
+  (outs ?? []).sort((a, b) => {
+    const aIn = lot && (a.payload as OutPayload | null)?.batch_id === lot;
+    const bIn = lot && (b.payload as OutPayload | null)?.batch_id === lot;
+    if (aIn && bIn) return (position(a) ?? 0) - (position(b) ?? 0);
+    if (aIn !== bIn) return aIn ? -1 : 1;
+    return 0;
+  });
   const fresh = (outs ?? []).filter((out) => lot && (out.payload as OutPayload | null)?.batch_id === lot);
-  const failed = lot ? PROPOSALS_PER_BRIEF - fresh.length : 0;
+  const failed = lot && fresh.length && fresh.length < PROPOSALS_PER_BRIEF ? PROPOSALS_PER_BRIEF - fresh.length : 0;
   const rules = mega?.rules.length ?? 0;
 
   return (
@@ -70,21 +85,26 @@ export default async function StudioPage({
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <Meta>Studio · {brand.name}</Meta>
-          <h1 className="mt-2 font-display text-display text-ink">{library ? "La photothèque" : "Le mur"}</h1>
+          <h1 className="mt-2 font-display text-display text-ink">{library ? "La photothèque" : feedView ? "Le feed" : "Le mur"}</h1>
         </div>
         <nav aria-label="Vues du Studio" className="flex gap-1 overflow-x-auto rounded-pill bg-card p-1">
           {(Object.keys(VIEWS) as View[]).map((key) => (
-            <Link key={key} href={`/app/studio?vue=${key}`} aria-current={!library && key === view ? "page" : undefined} className={TAB}>
+            <Link key={key} href={`/app/studio?vue=${key}`} aria-current={!library && !feedView && key === view ? "page" : undefined} className={TAB}>
               {VIEWS[key].label}
             </Link>
           ))}
+          <Link href="/app/studio?vue=feed" aria-current={feedView ? "page" : undefined} className={TAB}>
+            Feed
+          </Link>
           <Link href="/app/studio?vue=phototheque" aria-current={library ? "page" : undefined} className={TAB}>
             Photothèque{assets?.length ? ` · ${assets.length}` : ""}
           </Link>
         </nav>
       </header>
 
-      {library ? (
+      {feedView ? (
+        <FeedView outs={(outs ?? []) as { id: string; status: string; created_at: string; payload: OutPayload | null }[]} lot={lot ?? null} brandName={brand.name} />
+      ) : library ? (
         <>
           <BrandCard>
             <div className="grid gap-2">
@@ -225,6 +245,11 @@ export default async function StudioPage({
             </BrandCard>
           </div>
 
+          <Card>
+            <CardHeader title="Composer une série" aside={<Meta>feed de 9 · carrousel</Meta>} />
+            <SeriesComposer hasLogo={Boolean(logoUrl)} />
+          </Card>
+
           {lot && fresh.length ? (
             <Notice tone={failed > 0 ? "warning" : "success"}>
               {fresh.length} proposition{fresh.length > 1 ? "s" : ""} en tête du mur, encadrée{fresh.length > 1 ? "s" : ""}.
@@ -267,6 +292,7 @@ export default async function StudioPage({
                         <p className="line-clamp-2 text-small text-ink">{payload?.tile ? payload.tile.copy.headline : payload?.instruction ? `Retouche : ${payload.instruction}` : payload?.brief || "Sans brief"}</p>
                         <Meta>
                           {format}
+                          {payload?.carousel ? ` · diapo ${payload.carousel.index}/${payload.carousel.total}` : payload?.feed_index != null ? ` · feed, tuile ${payload.feed_index + 1}` : ""}
                           {payload?.tile ? ` · ${TILE_KINDS[payload.tile.kind as keyof typeof TILE_KINDS]?.label ?? "tuile"} · ${BACKGROUND_LABEL[payload.tile.background as Background] ?? payload.tile.background}` : ""} · {DATE.format(new Date(out.created_at))}
                         </Meta>
                         {payload?.text_check && !payload.text_check.ok ? (
