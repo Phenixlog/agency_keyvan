@@ -211,6 +211,23 @@ export async function updateEntry(args: {
   return "ok";
 }
 
+/**
+ * "Créer ce visuel" from a calendar day: once the lot is drawn, its first creation takes the slot,
+ * so the calendar fills itself; the user swaps it for another proposal with the picker if they prefer.
+ * Never overwrites a visual already chosen.
+ */
+export async function attachLotToEntry(args: { brandId: string; entryId: string; batchId: string }): Promise<"ok" | "skipped"> {
+  const supabase = await createSupabaseServerClient();
+  const { data: entry } = await supabase.from("calendar_entries").select("id,out_id").eq("id", args.entryId).eq("brand_id", args.brandId).maybeSingle();
+  if (!entry || entry.out_id) return "skipped";
+  const { data: outs } = await supabase.from("outs").select("id,payload,created_at").eq("brand_id", args.brandId).order("created_at", { ascending: true }).limit(60);
+  const first = (outs ?? []).find((out) => (out.payload as { batch_id?: string } | null)?.batch_id === args.batchId);
+  if (!first) return "skipped";
+  const { error } = await supabase.from("calendar_entries").update({ out_id: first.id }).eq("id", args.entryId).eq("brand_id", args.brandId);
+  if (error) throw error;
+  return "ok";
+}
+
 /* ------------------------------------------------------------------ */
 /* Proposer le mois                                                     */
 /* ------------------------------------------------------------------ */

@@ -1,8 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { archiveAsset, getAsset, registerAsset } from "@/lib/assets";
 import { OFFERED_FORMATS, resolveFormat, type CustomFormat, type ImageFormat } from "@/lib/brand-os";
+import { attachLotToEntry } from "@/lib/calendar";
 import { batchFailures, queueBusinessCard, queueImageGeneration, queueProposals, queueSeries } from "@/lib/jobs/engine";
 import { CAROUSEL_MAX, LOGO_PLACEMENTS, carouselSlideKind, isTileKind, parseCarouselPlan, parseFeedPlan, parseTilePlan, type LogoPlacement, CARD_FIELDS, parseCardInfo } from "@/lib/tiles";
 import { CREATION_AS_REFERENCE, outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
@@ -107,7 +109,11 @@ export async function createProposals(formData: FormData) {
     // The engine decides when the logo travels as a reference (tiles, artworks, mock-ups, custom supports).
     logoUrl: await brandLogo(brand.id),
   });
-  redirect(`/app/studio?lot=${batchId}${await failureParam(jobIds)}`);
+  // Launched from a calendar day: the lot's first creation takes the slot.
+  const entryId = String(formData.get("entry_id") || "");
+  const attached = /^[0-9a-f-]{36}$/i.test(entryId) ? await attachLotToEntry({ brandId: brand.id, entryId, batchId }) : "skipped";
+  if (attached === "ok") revalidatePath("/app/calendrier");
+  redirect(`/app/studio?lot=${batchId}${await failureParam(jobIds)}${attached === "ok" ? "&planifie=1" : ""}`);
 }
 
 /**

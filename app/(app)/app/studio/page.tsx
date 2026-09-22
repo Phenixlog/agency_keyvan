@@ -36,12 +36,13 @@ const TAB = "whitespace-nowrap rounded-pill px-4 py-2 text-small text-mute trans
 export default async function StudioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string; focus?: string; lot?: string; brief?: string; ref?: string; echec?: string; erreur?: string }>;
+  searchParams: Promise<{ vue?: string; focus?: string; lot?: string; brief?: string; ref?: string; echec?: string; erreur?: string; entry?: string; planifie?: string }>;
 }) {
   const { brand, os, mega } = await getWorkspace();
   if (!brand) redirect("/app/clients");
   if (!isValidated(brand)) return <ValidationGate brandName={brand.name} feature="Le Studio" />;
-  const { vue, focus, lot, brief: suggestedBrief, ref, echec, erreur } = await searchParams;
+  const { vue, focus, lot, brief: suggestedBrief, ref, echec, erreur, entry, planifie } = await searchParams;
+  const entryId = entry && /^[0-9a-f-]{36}$/i.test(entry) ? entry : null;
   // Why the lot came back short: said plainly, because a thinner wall says nothing (seen live: an empty image account).
   const failureLine = echec === "credits" ? " Cause : le compte du service d’images n’a plus de crédit. Rechargez-le, puis « Recréer »." : echec === "service" ? " Cause : le service d’images a refusé ou n’a pas répondu à temps. Réessayez dans un instant." : "";
   const library = vue === "phototheque";
@@ -164,7 +165,8 @@ export default async function StudioPage({
           <div className="grid gap-4 lg:grid-cols-12">
             <Card className="lg:col-span-8">
               <form action={createProposals} className="grid gap-6">
-                <Field label="Que voulez-vous voir ?" hint="Une scène, un objet, une situation. Sans brief, Brand OS illustre la promesse de la marque.">
+                {entryId ? <input type="hidden" name="entry_id" value={entryId} /> : null}
+                <Field label="Que voulez-vous voir ?" hint={entryId ? "Cette création prendra la place prévue dans le calendrier dès qu’elle sera dessinée." : "Une scène, un objet, une situation. Sans brief, Brand OS illustre la promesse de la marque."}>
                   <Textarea name="brief" rows={3} maxLength={800} defaultValue={suggestedBrief?.slice(0, 800) ?? ""} placeholder="Un bol fumant sur une table en bois, lumière du matin…" />
                 </Field>
 
@@ -252,6 +254,7 @@ export default async function StudioPage({
             <SeriesComposer hasLogo={Boolean(logoUrl)} />
           </Card>
 
+          {planifie === "1" ? <Notice tone="success">La première proposition a pris sa place dans le calendrier. Pour en préférer une autre, ouvrez la publication et choisissez-la.</Notice> : null}
           {erreur === "carte" ? <Notice tone="warning">Une carte de visite a besoin d’un nom et d’au moins un moyen de contact (téléphone, e-mail, site, adresse ou réseau).</Notice> : null}
           {lot && fresh.length ? (
             <Notice tone={failed > 0 ? "warning" : "success"}>

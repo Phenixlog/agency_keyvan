@@ -401,7 +401,7 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
 const isReady = (entry: EntryWithOut) => Boolean(entry.out && entry.caption);
 
 /** The Studio, with the idea (or the angle) as the brief, and the planned day so the creation can be attached back. */
-const studioHref = (entry: EntryWithOut) => `/app/studio?brief=${encodeURIComponent(entry.idea || entry.angle || "")}`;
+const studioHref = (entry: EntryWithOut) => `/app/studio?brief=${encodeURIComponent(entry.idea || entry.angle || "")}&entry=${entry.id}`;
 
 /** What is still missing before publishing: nothing to say when all is there. */
 function Readiness({ entry, onBrand = false }: { entry: EntryWithOut; onBrand?: boolean }) {
