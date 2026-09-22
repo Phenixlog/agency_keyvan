@@ -533,8 +533,8 @@ export const BRAND_OS_EXTENSION_SCHEMA = {
           type: "object",
           additionalProperties: false,
           required: ["brand", "light", "dark"],
-          description: "Trois fonds qui alternent dans le feed, CHACUN au format « nom #RRGGBB », cohérents avec la palette",
-          properties: { brand: { type: "string", description: "Le fond couleur de marque" }, light: { type: "string", description: "Le fond clair (crème, blanc cassé…)" }, dark: { type: "string", description: "Le fond sombre" } },
+          description: "Trois fonds qui alternent dans le feed, CHACUN au format « nom #RRGGBB », cohérents avec la palette. Une couleur de marque fluo ou très saturée (vert néon, rose, jaune) est un ACCENT, jamais une surface : le fond « marque » est alors une surface sombre ou claire « portée par » cet accent (ex. « noir #000000 avec accents vert néon #18E363 »), comme le site l'utilise lui-même.",
+          properties: { brand: { type: "string", description: "Le fond couleur de marque, ou la surface sombre/claire avec la couleur de marque en accent si celle-ci est fluo" }, light: { type: "string", description: "Le fond clair (crème, blanc cassé…)" }, dark: { type: "string", description: "Le fond sombre" } },
         },
         fonts: {
           type: "object",
