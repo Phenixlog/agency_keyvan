@@ -58,6 +58,18 @@ export default async function ClientHome({ searchParams }: { searchParams: Promi
       href: "/app/studio?vue=brouillons",
       cta: "Trier",
     },
+    signals?.clientChanges && {
+      icon: MessageSquareWarning,
+      text: `Le client demande ${signals.clientChanges} changement${signals.clientChanges > 1 ? "s" : ""} sur les publications de la semaine.`,
+      href: "/app/calendrier",
+      cta: "Voir ses remarques",
+    },
+    signals?.weekUnready && {
+      icon: CalendarDays,
+      text: `${signals.weekUnready} publication${signals.weekUnready > 1 ? "s" : ""} de la semaine ${signals.weekUnready > 1 ? "n’ont" : "n’a"} pas encore de visuel ou de légende.`,
+      href: "/app/calendrier",
+      cta: "Compléter",
+    },
     signals && signals.kept > 0 && !signals.nextPublication && { icon: CalendarDays, text: "Des créations sont gardées, mais rien n’est planifié.", href: "/app/calendrier", cta: "Planifier" },
     signals?.brandOS === "ready" && !signals.hasStrategy && {
       icon: Target,

@@ -202,6 +202,20 @@ export function ratioMismatch(channel: Channel, aspectRatio: string | null | und
   return accepted;
 }
 
+/** What a publication still lacks to be posted: the visual, the caption. Pure, shared by every screen. */
+export function entryReadiness(entry: { out?: unknown; out_id?: string | null; caption?: string | null }): { ready: boolean; missing: ("le visuel" | "la légende")[] } {
+  const missing: ("le visuel" | "la légende")[] = [];
+  if (!entry.out && !entry.out_id) missing.push("le visuel");
+  if (!entry.caption) missing.push("la légende");
+  return { ready: missing.length === 0, missing };
+}
+
+/** The seven days from a date (that date included), as AAAA-MM-JJ. */
+export function daysFrom(day: string, count = 7): string[] {
+  const start = new Date(`${day}T00:00:00Z`);
+  return Array.from({ length: count }, (_, i) => new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10));
+}
+
 /* ------------------------------------------------------------------ */
 /* Proposer le mois                                                     */
 /* ------------------------------------------------------------------ */

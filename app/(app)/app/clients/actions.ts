@@ -15,7 +15,9 @@ export async function openClient(formData: FormData) {
   if (!brands.some((b) => b.id === id)) redirect("/app/clients");
   (await cookies()).set(ACTIVE_BRAND_COOKIE, id, { path: "/", maxAge: ONE_YEAR_SECONDS, sameSite: "lax" });
   revalidatePath("/app", "layout");
-  redirect("/app");
+  // From the week view: straight to the day in that client's calendar. Only our own screens.
+  const next = String(formData.get("next") || "");
+  redirect(next.startsWith("/app/") && !next.startsWith("/app//") ? next : "/app");
 }
 
 export async function renameClient(formData: FormData) {
