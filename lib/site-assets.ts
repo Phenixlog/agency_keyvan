@@ -105,6 +105,7 @@ export function extractSiteColors(html: string): string[] {
   };
   const ranked = Array.from(counts).sort((a, b) => b[1] - a[1]).map(([hex]) => hex);
   const colourful = ranked.filter((hex) => !isGrey(hex));
+  // White and black are the backgrounds a feed lives on: a palette of five theme greens without them is unusable.
   const extremes = ranked.filter((hex) => hex === "#000000" || hex === "#FFFFFF");
-  return [...colourful.slice(0, MAX_COLORS), ...extremes].slice(0, MAX_COLORS);
+  return [...colourful.slice(0, MAX_COLORS - extremes.length), ...extremes].slice(0, MAX_COLORS);
 }

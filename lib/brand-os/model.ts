@@ -58,6 +58,12 @@ export function alignGraphicToPalette(graphic: BrandGraphic, palette: readonly s
   const hexes = palette.map((c) => c.match(/#[0-9a-f]{6}\b/i)?.[0]?.toUpperCase()).filter((h): h is string => Boolean(h));
   if (!hexes.length) return graphic;
   const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const luminance = (hex: string) => {
+    const [r, g, b] = rgb(hex);
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  };
+  // A light background only snaps to a light colour, a dark one to a dark colour: never cream → deep green.
+  const sameClass = (a: string, b: string) => Math.abs(luminance(a) - luminance(b)) < 0.35;
   const snap = (value: string) => {
     const hex = value.match(/#[0-9a-f]{6}\b/i)?.[0]?.toUpperCase();
     if (!hex) return value;
@@ -65,6 +71,7 @@ export function alignGraphicToPalette(graphic: BrandGraphic, palette: readonly s
     let best = hex;
     let bestDistance = Infinity;
     for (const candidate of hexes) {
+      if (!sameClass(hex, candidate)) continue;
       const [cr, cg, cb] = rgb(candidate);
       const distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2;
       if (distance < bestDistance) {
