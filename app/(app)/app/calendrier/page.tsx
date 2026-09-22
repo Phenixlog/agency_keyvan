@@ -504,7 +504,18 @@ function EntryRow({ entry, month, kept, llmReady }: { entry: EntryWithOut; month
         </span>
         {entry.angle ? <Meta>Angle · {entry.angle}</Meta> : null}
         {!proposed && entry.status === "planned" ? <Readiness entry={entry} /> : null}
-        {entry.client_status === "changes" && entry.client_comment ? <p className="rounded-inner bg-danger-tint px-4 py-3 text-small text-danger">Le client : « {entry.client_comment} »</p> : null}
+        {entry.client_status === "changes" && entry.client_comment ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-inner bg-danger-tint px-4 py-3">
+            <p className="text-small text-danger">Le client : « {entry.client_comment} »</p>
+            {/* The end client's words are the best signal to adjust the brand: hand them to the expert as they are. */}
+            <Link
+              href={`/app/expert?message=${encodeURIComponent(`Le client a demandé un changement sur la publication ${CHANNELS[entry.channel]} du ${DAY_LABEL.format(asDate(entry.scheduled_on))} : « ${entry.client_comment} ». Qu’est-ce que ça dit de la marque, et que faut-il ajuster ?`)}`}
+              className="inline-flex items-center gap-2 rounded-pill bg-card px-3 py-1.5 text-small font-semibold text-ink transition duration-(--duration-fast) ease-cimaise hover:-translate-y-px"
+            >
+              <MessageSquareText size={14} strokeWidth={1.75} /> En parler à l’expert
+            </Link>
+          </div>
+        ) : null}
         <p className="whitespace-pre-line text-small text-mute">
           {entry.caption || (entry.out ? entry.out.payload?.brief : entry.idea ? `Visuel à créer : ${entry.idea}` : "") || "Pas encore de légende."}
         </p>

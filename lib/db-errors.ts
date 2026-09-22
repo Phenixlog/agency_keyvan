@@ -15,3 +15,8 @@ export function isForbidden(error: { code?: string } | null | undefined): boolea
 export function isMissingColumn(error: { code?: string } | null | undefined): boolean {
   return error?.code === "42703" || error?.code === "PGRST204";
 }
+
+/** PGRST200: the join (foreign key) asked for in a select does not exist yet (migration pending). */
+export function isMissingRelation(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "PGRST200";
+}

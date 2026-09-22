@@ -1,7 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { toDay, upcomingEntries, CHANNELS } from "@/lib/calendar";
 import { resolveFormat } from "@/lib/brand-os";
-import { MAX_ANSWER_TOKENS, MAX_MESSAGE_CHARS, MODEL_CHAT, buildExpertSystem, parseProposal, sanitizeHistory, saveExchange, splitAnswer } from "@/lib/expert";
+import {
+  BILAN_PROMPT,
+  MAX_ANSWER_TOKENS,
+  MAX_MESSAGE_CHARS,
+  MODEL_CHAT,
+  buildExpertSystem,
+  createConversation,
+  detectStorage,
+  getConversation,
+  listDecisions,
+  parseProposal,
+  sanitizeHistory,
+  saveExchange,
+  splitAnswer,
+  titleConversation,
+  type ConversationKind,
+} from "@/lib/expert";
+import { isMissingColumn, isMissingTable } from "@/lib/db-errors";
 import { outImageUrl, type OutPayload } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
@@ -12,6 +29,9 @@ const TIMEOUT_MS = 90_000;
 const CREATIONS_SHOWN = 4;
 const STATUS_LABEL: Record<string, string> = { ready: "gardée", draft: "brouillon" };
 const UPCOMING = 6;
+const FEEDBACK_SHOWN = 8;
+const DECISIONS_SHOWN = 10;
+const BILAN_TITLE = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" });
 // Same reason as lib/llm/openrouter.ts: a reasoning model thinks inside max_tokens.
 const REASONING_HEADROOM_TOKENS = 2_000;
 
@@ -30,8 +50,10 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return fail(503, "L’expert n’est pas configuré sur ce serveur (OPENROUTER_API_KEY manquante).");
 
-  const payload = (await req.json().catch(() => null)) as { messages?: unknown; focusOutId?: unknown } | null;
-  const history = sanitizeHistory(payload?.messages);
+  const payload = (await req.json().catch(() => null)) as { messages?: unknown; focusOutId?: unknown; conversationId?: unknown; bilan?: unknown } | null;
+  const bilan = payload?.bilan === true;
+  // A bilan is the expert coming to the user: the question is ours, not typed.
+  const history = bilan ? [{ role: "user" as const, content: BILAN_PROMPT }] : sanitizeHistory(payload?.messages);
   const question = history.at(-1);
   if (!question || question.role !== "user") return fail(400, "Message vide.");
 
@@ -40,7 +62,23 @@ export async function POST(req: NextRequest) {
   if (!brand) return fail(409, "Aucune marque active.");
 
   const today = toDay(new Date());
-  const [{ data: outs }, upcoming] = await Promise.all([
+  // The conversation: the one asked for (checked against the brand), or a new one opened now.
+  const storage = await detectStorage(supabase);
+  let conversationId: string | null = null;
+  let conversationTitle: string | null = null;
+  if (storage === "threaded") {
+    const wanted = typeof payload?.conversationId === "string" ? await getConversation(supabase, brand.id, payload.conversationId) : null;
+    if (wanted) {
+      conversationId = wanted.id;
+      conversationTitle = wanted.title;
+    } else {
+      const kind: ConversationKind = bilan ? "bilan" : "chat";
+      conversationTitle = bilan ? `Bilan du ${BILAN_TITLE.format(new Date(`${today}T00:00:00Z`))}` : null;
+      conversationId = await createConversation(supabase, { brand, userId, kind, title: conversationTitle });
+    }
+  }
+
+  const [{ data: outs }, upcoming, feedback, decisions] = await Promise.all([
     supabase
       .from("outs")
       .select("id,status,created_at,payload")
@@ -49,7 +87,11 @@ export async function POST(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(CREATIONS_SHOWN),
     upcomingEntries(brand.id, today, UPCOMING),
+    // What the end client asked to change, through the planning link (migration 0009).
+    supabase.from("calendar_entries").select("scheduled_on,channel,client_comment").eq("brand_id", brand.id).eq("client_status", "changes").not("client_comment", "is", null).order("client_reviewed_at", { ascending: false }).limit(FEEDBACK_SHOWN),
+    listDecisions(brand.id),
   ]);
+  if (feedback.error && !isMissingColumn(feedback.error) && !isMissingTable(feedback.error)) console.error("[expert] retours client —", feedback.error.message);
   // "C'est un problème de marque" on a Studio tile: that creation is what the user is talking about.
   // Looked up within the active brand, so an id from the browser cannot reach another client's image.
   const focusId = typeof payload?.focusOutId === "string" && /^[0-9a-f-]{36}$/i.test(payload.focusOutId) ? payload.focusOutId : null;
@@ -78,6 +120,8 @@ export async function POST(req: NextRequest) {
       };
     }),
     upcoming: upcoming.map((e) => ({ day: e.scheduled_on, channel: CHANNELS[e.channel], caption: e.caption })),
+    clientFeedback: (feedback.data ?? []).map((f) => ({ day: f.scheduled_on as string, channel: CHANNELS[f.channel as keyof typeof CHANNELS] ?? String(f.channel), comment: String(f.client_comment) })),
+    decisions: decisions.slice(0, DECISIONS_SHOWN).map((d) => ({ day: d.createdAt.slice(0, 10), title: d.title })),
     today,
   });
 
@@ -152,18 +196,31 @@ export async function POST(req: NextRequest) {
         if (!answer.trim()) return;
         // Store the readable text and the validated proposal separately: raw JSON never reaches the thread.
         const { text, raw } = splitAnswer(answer);
-        await saveExchange(supabase, {
+        const stored = await saveExchange(supabase, {
           brand,
           userId,
+          conversationId,
           question: question.content.slice(0, MAX_MESSAGE_CHARS),
           answer: text || "Voici ce que je propose.",
           proposal: raw ? parseProposal(raw) : null,
+          creations: creations.map(({ out, url }) => ({ id: out.id as string, url })),
         });
+        // First exchange of an untitled conversation: name it now, while the question is at hand.
+        if (conversationId && !conversationTitle && stored.assistantId) {
+          await titleConversation(supabase, { brandId: brand.id, conversationId, question: question.content, answer: text });
+        }
       },
     })
   );
 
   return new Response(stream, {
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no" },
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Accel-Buffering": "no",
+      // So the browser can show which images the expert received, and land on the conversation it opened.
+      ...(conversationId ? { "X-Conversation-Id": conversationId } : {}),
+      "X-Looked-At": creations.map(({ out }) => out.id).join(","),
+    },
   });
 }
