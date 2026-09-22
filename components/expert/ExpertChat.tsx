@@ -235,12 +235,20 @@ export function ExpertChat({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+  /** Follow the answer only while the reader is at the bottom: scrolling up to reread must not be fought. */
+  const follow = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+    const thread = threadRef.current;
+    if (!thread || !follow.current) return;
+    // Scroll the thread itself, never the page (scrollIntoView moved every ancestor and jumped during streaming).
+    const frame = requestAnimationFrame(() => {
+      thread.scrollTop = thread.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [messages]);
 
   // Sent once: the parameter is dropped from the URL first, so a refresh or a remount cannot resend it.
@@ -340,7 +348,7 @@ export function ExpertChat({
   const empty = messages.length === 0;
 
   return (
-    <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden">
       {/* ---- À décider : the proposals still waiting, wherever they were made ---- */}
       {pending.length ? (
         <details className="group rounded-inner bg-warning-tint px-4 py-2">
@@ -367,7 +375,15 @@ export function ExpertChat({
       )}
 
       {/* ---- The thread: the only thing that scrolls ---- */}
-      <div aria-live="polite" className="grid min-h-0 content-start gap-4 overflow-y-auto px-1 py-2">
+      <div
+        ref={threadRef}
+        aria-live="polite"
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+        className="grid min-h-0 content-start gap-4 overflow-y-auto overscroll-contain px-1 py-2 [scrollbar-gutter:stable]"
+      >
         {empty ? (
           <div className="grid gap-4 self-center justify-self-center py-8 text-center">
             <p className="max-w-[36ch] font-display text-h1 text-ink">Qu’est-ce qui ne va pas chez {brandName} ?</p>
@@ -429,7 +445,6 @@ export function ExpertChat({
             </div>
           )
         )}
-        <div ref={endRef} />
       </div>
 
       {/* ---- The composer ---- */}

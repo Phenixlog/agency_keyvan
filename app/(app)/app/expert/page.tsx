@@ -69,10 +69,11 @@ export default async function ExpertPage({
       ) : null}
 
       {/* Full height on desktop: the rail and the conversation share the screen, only the thread scrolls. */}
-      <div className="grid min-h-[60vh] grid-cols-[minmax(0,1fr)] gap-4 lg:h-[calc(100vh-11rem)] lg:min-h-[32rem] lg:grid-cols-[17rem_minmax(0,1fr)]">
+      {/* A fixed height at every width: the thread scrolls inside, the page never grows with the conversation. */}
+      <div className="grid h-[calc(100dvh-13rem)] min-h-[28rem] grid-cols-[minmax(0,1fr)] gap-4 lg:h-[calc(100vh-11rem)] lg:min-h-[32rem] lg:grid-cols-[17rem_minmax(0,1fr)]">
         <Rail brandName={brand.name} conversations={conversations} currentId={current?.id ?? null} decisions={decisions} threaded={storage === "threaded"} />
 
-        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-card bg-card p-3 md:p-4">
+        <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-card bg-card p-3 md:p-4">
           <header className="flex min-h-10 flex-wrap items-center justify-between gap-2 px-1">
             {current ? (
               <>
