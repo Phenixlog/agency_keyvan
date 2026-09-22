@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { chatJson, isLlmConfigured, MODEL_ANALYSIS, MODEL_FAST } from "@/lib/llm/openrouter";
+import { chatJson, isLlmConfigured, MODEL_ANALYSIS } from "@/lib/llm/openrouter";
 import { isForbidden, isMissingColumn, isMissingTable } from "@/lib/db-errors";
 import { resolveFormat, type BrandOS } from "@/lib/brand-os";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -26,6 +26,8 @@ import {
   type ClientStatus,
   type EntryStatus,
   type PlanItem,
+  CAPTION_CHANNEL_RULES,
+  assembleCaption,
 } from "@/lib/calendar/model";
 import { outImageUrl, type OutPayload } from "@/lib/outs";
 
@@ -139,45 +141,70 @@ export async function deleteEntry(brandId: string, entryId: string) {
 }
 
 /** Writes a caption in the brand's voice when the entry has none. */
+/**
+ * The caption of a publication, written like a senior community manager would: for the channel, in the
+ * brand's voice, looking at the image itself (vision), knowing the tile's texts so it complements them,
+ * and the captions already written this month so it does not repeat itself. Keyvan: « pas une légende
+ * bidon, une légende optimisée comme si un expert l'écrivait ».
+ */
 export async function suggestCaption(args: {
   brandId: string;
   entryId: string;
   brandName: string;
   summary: string;
   rules: readonly string[];
+  canon?: BrandOS | null;
 }): Promise<"ok" | "no-llm" | "failed"> {
   if (!isLlmConfigured()) return "no-llm";
   const supabase = await createSupabaseServerClient();
   const { data: entry } = await readEntries((columns) => supabase.from("calendar_entries").select(columns).eq("id", args.entryId).eq("brand_id", args.brandId).maybeSingle());
   if (!entry) return "failed";
   const typed = entry as unknown as EntryWithOut;
+  const payload = typed.out?.payload ?? null;
+  const imageUrl = payload ? outImageUrl(payload) : null;
+  const { first, last } = monthBounds(typed.scheduled_on.slice(0, 7));
+  const { data: siblings } = await supabase.from("calendar_entries").select("scheduled_on,channel,caption").eq("brand_id", args.brandId).gte("scheduled_on", first).lte("scheduled_on", last).neq("id", args.entryId).not("caption", "is", null).order("scheduled_on", { ascending: true }).limit(12);
+  const os = args.canon ?? null;
+  const voice = os?.voice;
 
   try {
-    const { caption } = await chatJson<{ caption: string }>({
-      model: MODEL_FAST,
+    const { caption, hashtags } = await chatJson<{ caption: string; hashtags: string[] }>({
+      model: MODEL_ANALYSIS,
       system: CAPTION_SYSTEM,
       user: [
-        `Marque : ${args.brandName}`,
-        `Brand OS :\n${args.summary}`,
-        args.rules.length ? `Règles apprises :\n- ${args.rules.join("\n- ")}` : "",
-        `Canal : ${CHANNELS[typed.channel]}`,
+        `Marque : ${args.brandName}${os?.business?.area ? ` — ${os.business.area}` : ""}`,
+        `Canal et règle : ${CHANNELS[typed.channel]}. ${CAPTION_CHANNEL_RULES[typed.channel]}`,
         `Date de publication : ${typed.scheduled_on}`,
         typed.angle ? `Angle éditorial de cette publication : """${typed.angle}"""` : "",
-        `Visuel associé (brief) : """${typed.out?.payload?.brief || typed.idea || "aucun visuel, ou visuel sans brief"}"""`,
-        typed.caption ? `Brouillon actuel à améliorer : """${typed.caption}"""` : "",
+        voice?.address ? `Adresse au client : ${voice.address === "tu" ? "tutoiement" : "vouvoiement"}` : "",
+        voice?.must?.length ? `Mots imposés : ${voice.must.join(", ")}` : "",
+        voice?.forbidden?.length ? `Mots interdits : ${voice.forbidden.join(", ")}` : "",
+        voice?.says?.length ? `Elle dirait : ${voice.says.map((v) => `« ${v} »`).join(" ")}` : "",
+        voice?.never?.length ? `Elle ne dirait jamais : ${voice.never.map((v) => `« ${v} »`).join(" ")}` : "",
+        os?.offers?.items.length ? `Offres (les seules qu'on peut citer) : ${os.offers.items.map((o) => `${o.name}${o.line ? ` (${o.line})` : ""}`).join(" ; ")}` : "",
+        os?.offers?.proofs.length ? `Preuves vraies : ${os.offers.proofs.join(" ; ")}` : "",
+        os?.offers?.legal.length ? `Mentions obligatoires : ${os.offers.legal.join(" ; ")}` : "",
+        os?.audiences?.length ? `Public principal : ${os.audiences[0]!.who} — veut : ${os.audiences[0]!.desire}` : "",
+        payload?.tile ? `Textes déjà écrits SUR l'image (ne pas répéter mot pour mot) : titre « ${payload.tile.copy.headline} »${payload.tile.copy.subline ? `, sous-titre « ${payload.tile.copy.subline} »` : ""}${payload.tile.copy.cta ? `, bouton « ${payload.tile.copy.cta} »` : ""}` : "",
+        `Ce que montre le visuel (brief) : """${payload?.brief || typed.idea || "aucun visuel, ou visuel sans brief"}"""${imageUrl ? " — l'image est jointe : regarde-la." : ""}`,
+        siblings?.length ? `Légendes déjà écrites ce mois-ci (ne pas répéter) :\n${siblings.map((row) => `- ${row.scheduled_on} · ${CHANNELS[row.channel as Channel] ?? row.channel} : ${String(row.caption).slice(0, 160).replace(/\s+/g, " ")}`).join("\n")}` : "",
+        typed.caption ? `Brouillon actuel à dépasser : """${typed.caption}"""` : "",
+        args.rules.length ? `Règles apprises de la marque :\n- ${args.rules.join("\n- ")}` : "",
+        `Résumé du Brand OS :\n${args.summary.slice(0, 2500)}`,
       ]
         .filter(Boolean)
         .join("\n\n"),
+      imageUrls: imageUrl ? [imageUrl] : undefined,
       schemaName: "caption",
       schema: CAPTION_SCHEMA,
-      maxTokens: 700,
+      maxTokens: 900,
       temperature: 0.7,
-      timeoutMs: 25_000,
+      timeoutMs: 40_000,
     });
     if (!caption?.trim()) throw new Error("légende vide");
     const { error } = await supabase
       .from("calendar_entries")
-      .update({ caption: caption.trim().slice(0, MAX_CAPTION) })
+      .update({ caption: assembleCaption(typed.channel, caption, Array.isArray(hashtags) ? hashtags : []) })
       .eq("id", args.entryId)
       .eq("brand_id", args.brandId);
     if (error) throw error;

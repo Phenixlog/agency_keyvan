@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { archiveAsset, getAsset, registerAsset } from "@/lib/assets";
 import { OFFERED_FORMATS, resolveFormat, type CustomFormat, type ImageFormat } from "@/lib/brand-os";
-import { attachLotToEntry } from "@/lib/calendar";
+import { attachLotToEntry, suggestCaption } from "@/lib/calendar";
 import { batchFailures, queueBusinessCard, queueImageGeneration, queueProposals, queueSeries } from "@/lib/jobs/engine";
 import { CAROUSEL_MAX, LOGO_PLACEMENTS, carouselSlideKind, isTileKind, parseCarouselPlan, parseFeedPlan, parseTilePlan, type LogoPlacement, CARD_FIELDS, parseCardInfo } from "@/lib/tiles";
 import { CREATION_AS_REFERENCE, outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
@@ -16,9 +16,9 @@ const MAX_INSTRUCTION = 300;
 
 /** Every action works on the workspace's active brand: no brand id travels through a form. */
 async function activeBrand() {
-  const { brand, userId } = await getWorkspace();
+  const { brand, userId, os, mega } = await getWorkspace();
   if (!brand) redirect("/app/clients");
-  return { brand, userId };
+  return { brand, userId, os, mega };
 }
 
 /** A catalogue format, or "custom" with the ratio and the medium the user described. Anything else falls back to the square post. */
@@ -70,7 +70,7 @@ async function brandLogo(brandId: string): Promise<string | null> {
  * Generation runs inside the action (≈ 30 s): callers show a pending SubmitButton.
  */
 export async function createProposals(formData: FormData) {
-  const { brand, userId } = await activeBrand();
+  const { brand, userId, os, mega } = await activeBrand();
   const brief = String(formData.get("brief") || "").trim().slice(0, MAX_BRIEF);
   const assetId = String(formData.get("assetId") || "");
   const asset = assetId ? await getAsset(brand.id, assetId) : null;
@@ -112,7 +112,11 @@ export async function createProposals(formData: FormData) {
   // Launched from a calendar day: the lot's first creation takes the slot.
   const entryId = String(formData.get("entry_id") || "");
   const attached = /^[0-9a-f-]{36}$/i.test(entryId) ? await attachLotToEntry({ brandId: brand.id, entryId, batchId, background: String(formData.get("entry_background") || "") || null }) : "skipped";
-  if (attached === "ok") revalidatePath("/app/calendrier");
+  // A visual in its slot deserves its caption at once, written for it (Keyvan: the caption comes with the image).
+  if (attached === "ok") {
+    await suggestCaption({ brandId: brand.id, entryId, brandName: brand.name, summary: os?.summary ?? "", rules: mega?.rules ?? [], canon: os?.canon ?? null });
+    revalidatePath("/app/calendrier");
+  }
   redirect(`/app/studio?lot=${batchId}${await failureParam(jobIds)}${attached === "ok" ? "&planifie=1" : ""}`);
 }
 

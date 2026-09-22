@@ -92,7 +92,7 @@ export async function remove(formData: FormData) {
 export async function writeCaption(formData: FormData) {
   const { brand, os, mega } = await activeBrand();
   const entryId = String(formData.get("entryId") || "");
-  const outcome = await suggestCaption({ brandId: brand.id, entryId, brandName: brand.name, summary: os?.summary ?? "", rules: mega?.rules ?? [] });
+  const outcome = await suggestCaption({ brandId: brand.id, entryId, brandName: brand.name, summary: os?.summary ?? "", rules: mega?.rules ?? [], canon: os?.canon ?? null });
   done(back(monthOf(formData), outcome === "ok" ? "legende" : "legende-echec", entryId));
 }
 

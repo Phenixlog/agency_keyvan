@@ -258,7 +258,7 @@ export default async function StudioPage({
             <SeriesComposer hasLogo={Boolean(logoUrl)} />
           </Card>
 
-          {planifie === "1" ? <Notice tone="success">La première proposition a pris sa place dans le calendrier. Pour en préférer une autre, ouvrez la publication et choisissez-la.</Notice> : null}
+          {planifie === "1" ? <Notice tone="success">La première proposition a pris sa place dans le calendrier et sa légende est écrite. Pour en préférer une autre, ouvrez la publication et choisissez-la.</Notice> : null}
           {erreur === "carte" ? <Notice tone="warning">Une carte de visite a besoin d’un nom et d’au moins un moyen de contact (téléphone, e-mail, site, adresse ou réseau).</Notice> : null}
           {lot && fresh.length ? (
             <Notice tone={failed > 0 ? "warning" : "success"}>
