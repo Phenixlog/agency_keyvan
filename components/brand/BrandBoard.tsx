@@ -4,6 +4,7 @@ import { MessageSquareText, Users, X } from "lucide-react";
 import type { BoardData } from "@/lib/brand-board";
 import { FREQUENCIES, SLIDERS, parsePalette, parsePillar } from "@/lib/brand-os/model";
 import { onBrand } from "@/lib/tokens";
+import { Meta } from "@/components/ui";
 import { CHANNELS, validCadence } from "@/lib/calendar/model";
 
 /**
@@ -370,6 +371,24 @@ export function BrandBoard({ board, editable = false }: { board: BoardData; edit
       ) : editable ? (
         <Section title="Le système des tuiles" review="Posons le système graphique des posts avec texte de cette marque : trois fonds (marque, clair, sombre), deux polices Google Fonts, une forme signature, un style de stickers, le traitement des titres, la règle du logo." editable={editable}>
           <p className="text-small text-mute print:hidden">Pas encore posé : les tuiles avec texte utilisent la palette et des réglages sobres. Demandez-le à l’expert, ou relancez l’analyse.</p>
+        </Section>
+      ) : null}
+
+      {/* ---- Les assets de base d'une identité créée par Brand OS ---- */}
+      {board.assets?.length ? (
+        <Section title="Les assets de base" editable={editable}>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            {board.assets.map((asset) => (
+              <a key={asset.url} href={asset.url} target="_blank" rel="noreferrer" className="grid gap-1">
+                <span className="relative block aspect-square overflow-hidden rounded-inner bg-soft">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={asset.url} alt={asset.label} loading="lazy" className={`absolute inset-0 size-full ${asset.kind === "mood" ? "object-cover" : "object-contain p-2"}`} />
+                </span>
+                <span className="font-mono text-meta text-mute">{asset.label}</span>
+              </a>
+            ))}
+          </div>
+          {board.identityDirection ? <Meta>Direction choisie : {board.identityDirection}. Les logos sont des images (PNG), pas des vecteurs.</Meta> : null}
         </Section>
       ) : null}
 

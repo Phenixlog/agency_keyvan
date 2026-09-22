@@ -371,7 +371,7 @@ const STRING_ARRAY = { type: "array", items: { type: "string" } } as const;
 export const BRAND_OS_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "positioning", "audience", "promise", "tone", "voice", "pillars", "visual", "business", "audiences", "offers", "presence", "graphic", "mega_intro"],
+  required: ["name", "positioning", "audience", "promise", "tone", "voice", "pillars", "visual", "mega_intro"],
   properties: {
     name: { type: "string", description: "Nom de la marque tel qu'elle se présente" },
     positioning: { type: "string", description: "1-2 phrases : pour qui, quoi, en quoi c'est différent" },
@@ -381,21 +381,11 @@ export const BRAND_OS_SCHEMA = {
     voice: {
       type: "object",
       additionalProperties: false,
-      required: ["says", "never", "sliders", "must", "forbidden", "address"],
+      required: ["says", "never"],
       description: "La voix en exemples, pour que le client se reconnaisse",
       properties: {
         says: { ...STRING_ARRAY, description: "3 phrases courtes que cette marque écrirait telles quelles" },
         never: { ...STRING_ARRAY, description: "3 phrases qu'elle n'écrirait jamais (clichés du secteur, ton contraire au sien)" },
-        sliders: {
-          type: "object",
-          additionalProperties: false,
-          required: ["premium", "serious", "discreet", "institutional", "minimal"],
-          description: "Curseurs de 1 à 5 : 1 = le pôle de gauche, 5 = celui de droite. premium(1)↔accessible(5), sérieux↔fun, discret↔audacieux, institutionnel↔proche, minimal↔expressif",
-          properties: { premium: { type: "integer" }, serious: { type: "integer" }, discreet: { type: "integer" }, institutional: { type: "integer" }, minimal: { type: "integer" } },
-        },
-        must: { ...STRING_ARRAY, description: "5 mots que la marque doit pouvoir utiliser (son vocabulaire)" },
-        forbidden: { ...STRING_ARRAY, description: "Mots ou sujets à ne jamais employer" },
-        address: { type: "string", enum: ["tu", "vous", ""], description: "Tutoiement ou vouvoiement du client. Vide si indécidable." },
       },
     },
     pillars: { ...STRING_ARRAY, description: "3 à 5 piliers éditoriaux, chacun au format « Titre court : une ligne d'explication »" },
@@ -414,6 +404,22 @@ export const BRAND_OS_SCHEMA = {
         avoid: { ...STRING_ARRAY, description: "Ce que les visuels doivent éviter" },
       },
     },
+    mega_intro: {
+      type: "string",
+      description: "Consignes créatives permanentes pour tout contenu de la marque, 4 à 8 phrases",
+    },
+  },
+} as const;
+
+/**
+ * Second half of the analysis, asked in a separate call: Claude (via OpenRouter) refuses a strict
+ * schema this big in one go ("compiled grammar is too large"). Both halves run in parallel.
+ */
+export const BRAND_OS_EXTENSION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["business", "audiences", "voice", "offers", "presence", "graphic"],
+  properties: {
     business: {
       type: "object",
       additionalProperties: false,
@@ -440,6 +446,24 @@ export const BRAND_OS_SCHEMA = {
           objection: { type: "string", description: "L'objection fréquente avant d'acheter" },
           proof: { type: "string", description: "La preuve qui le convainc (avis, prix, proximité, résultat…)" },
         },
+      },
+    },
+    voice: {
+      type: "object",
+      additionalProperties: false,
+      required: ["sliders", "must", "forbidden", "address"],
+      description: "Les garde-fous de la voix",
+      properties: {
+        sliders: {
+          type: "object",
+          additionalProperties: false,
+          required: ["premium", "serious", "discreet", "institutional", "minimal"],
+          description: "Curseurs de 1 à 5 : 1 = le pôle de gauche, 5 = celui de droite. premium(1)↔accessible(5), sérieux↔fun, discret↔audacieux, institutionnel↔proche, minimal↔expressif",
+          properties: { premium: { type: "integer" }, serious: { type: "integer" }, discreet: { type: "integer" }, institutional: { type: "integer" }, minimal: { type: "integer" } },
+        },
+        must: { ...STRING_ARRAY, description: "5 mots que la marque doit pouvoir utiliser (son vocabulaire)" },
+        forbidden: { ...STRING_ARRAY, description: "Mots ou sujets à ne jamais employer" },
+        address: { type: "string", enum: ["tu", "vous", ""], description: "Tutoiement ou vouvoiement du client. Vide si indécidable." },
       },
     },
     offers: {
@@ -489,10 +513,6 @@ export const BRAND_OS_SCHEMA = {
         titles: { type: "string", description: "In ENGLISH, 6-20 words: how titles are treated (bold uppercase, serif italic, highlighted word, underlined…)" },
         logoRule: { type: "string", description: "En français, une phrase : où et comment le logo se pose sur les tuiles (petit, dans un coin, jamais au centre…)" },
       },
-    },
-    mega_intro: {
-      type: "string",
-      description: "Consignes créatives permanentes pour tout contenu de la marque, 4 à 8 phrases",
     },
   },
 } as const;

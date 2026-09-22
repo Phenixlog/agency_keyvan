@@ -85,6 +85,7 @@ Aucune chrome avant OB‑06.
 - `lib/jobs/` · pipeline de génération (WaveSpeed) + persistance `jobs`/`outs`
 - `lib/brand-os/` · modèle Brand OS, schémas JSON, replis déterministes (`model.ts`, pur et testé) + orchestration LLM (`index.ts`)
 - `lib/llm/openrouter.ts` · client OpenRouter (sortie JSON stricte)
+- `lib/identity/` · Porte B : trois directions d’identité (palette, polices, logo dessiné, moodboard), choix, assets de base (`model.ts` pur et testé, `index.ts` : modèle + images)
 - `lib/tiles/` · tuiles avec texte (`model.ts` pur et testé : types de tuiles, rédaction, prompt assemblé par du code, contrôle du texte rendu ; `index.ts` : appels au modèle) ; servi par `POST /api/tile-copy`
 - `lib/onboarding-answers.ts` · questionnaire d’onboarding (lecture des formulaires préremplis vers le Brand OS, blocs verts / rouges), pur et testé
 - `lib/expertise/` · fiche d’expertise par support (`model.ts` pur et testé, `index.ts` lecture / rédaction / stockage) ; servie par `POST /api/expertise`

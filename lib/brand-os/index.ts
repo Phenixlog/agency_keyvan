@@ -2,6 +2,7 @@ import { chatJson, isLlmConfigured, MODEL_ANALYSIS, MODEL_FAST } from "@/lib/llm
 import {
   ANALYSIS_SYSTEM,
   EDIT_PROMPT_SYSTEM,
+  BRAND_OS_EXTENSION_SCHEMA,
   BRAND_OS_SCHEMA,
   IMAGE_PROMPT_SCHEMA,
   IMAGE_PROMPT_SYSTEM,
@@ -34,6 +35,8 @@ async function withFallback<T>(label: string, run: () => Promise<T>, fallback: (
   }
 }
 
+type Extension = Pick<BrandOS, "business" | "audiences" | "offers" | "presence" | "graphic"> & { voice: Omit<NonNullable<BrandOS["voice"]>, "says" | "never"> };
+
 export async function buildBrandOS(args: {
   source: string;
   nameHint?: string | null;
@@ -43,23 +46,37 @@ export async function buildBrandOS(args: {
     const { mega_intro, ...os } = raw;
     return { os, megaIntro: mega_intro, source };
   };
-  return withFallback(
+  const user = analysisUserMessage(args);
+  // The core (positioning, voice, visual) and the questionnaire blocks are asked in parallel:
+  // one strict schema for everything is too large for the provider. A failed extension only
+  // leaves its blocks empty; a failed core falls back to the deterministic draft.
+  const extension = isLlmConfigured()
+    ? chatJson<Extension>({ model: MODEL_ANALYSIS, system: ANALYSIS_SYSTEM, user, schemaName: "brand_os_extension", schema: BRAND_OS_EXTENSION_SCHEMA, maxTokens: 3500, timeoutMs: 90_000 }).catch((e) => {
+        console.error("[brand-os] blocs du questionnaire : vides —", e instanceof Error ? e.message : e);
+        return null;
+      })
+    : Promise.resolve(null);
+  const result = await withFallback(
     "analyse de marque",
     async () =>
       toResult(
         await chatJson<BrandOS & { mega_intro: string }>({
           model: MODEL_ANALYSIS,
           system: ANALYSIS_SYSTEM,
-          user: analysisUserMessage(args),
+          user,
           schemaName: "brand_os",
           schema: BRAND_OS_SCHEMA,
-          maxTokens: 4000,
+          maxTokens: 2500,
           timeoutMs: 90_000,
         }),
         "llm"
       ),
     () => toResult(fallbackBrandOS(args.source, args.nameHint), "fallback")
   );
+  const extra = await extension;
+  if (!extra) return result;
+  const { voice: voiceExtra, ...blocks } = extra;
+  return { ...result, os: { ...result.os, ...blocks, voice: { says: [], never: [], ...result.os.voice, ...voiceExtra } } };
 }
 
 export async function composeImagePrompt(args: {

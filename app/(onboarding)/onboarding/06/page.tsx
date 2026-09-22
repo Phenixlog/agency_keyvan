@@ -29,7 +29,7 @@ export default async function OB06() {
 
   async function save(formData: FormData) {
     "use server";
-    const { brandId } = await requireOnboardingBrand();
+    const { session, brandId } = await requireOnboardingBrand();
     await saveCanonDraft(brandId, (os) => ({
       ...os,
       offers: readOffers(formData),
@@ -37,7 +37,8 @@ export default async function OB06() {
       identity: readIdentity(formData, os.identity),
       visual: readVisual(formData, os.visual),
     }));
-    redirect("/onboarding/07");
+    // No identity to respect: the art director takes over before the validation screen.
+    redirect(session.data.door === "non" ? "/onboarding/identite" : "/onboarding/07");
   }
 
   return (
@@ -145,7 +146,7 @@ export default async function OB06() {
         <section className="grid gap-4">
           <h2 className="font-display text-h2 font-normal text-ink">{door === "non" ? "Ce que les images doivent respecter, pour l’instant" : "L’identité visuelle"}</h2>
           {door === "non" ? (
-            <Meta>L’identité sera créée à l’étape suivante du produit (directions, palette, polices, logo). Ce que vous notez ici la guide.</Meta>
+            <Meta>L’identité se crée à l’écran suivant (trois directions : palette, polices, logo, moodboard). Ce que vous notez ici la guide.</Meta>
           ) : null}
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Palette" hint="Une couleur par ligne, « nom #RRGGBB ». Sans code, la couleur ne s’affiche pas.">

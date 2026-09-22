@@ -36,7 +36,7 @@ export default async function OB07() {
     <Step
       step={7}
       wide
-      back="/onboarding/06"
+      back={door === "non" ? "/onboarding/identite" : "/onboarding/06"}
       brandColor={brand.color}
       title={
         <>
@@ -63,9 +63,9 @@ export default async function OB07() {
         ))}
       </section>
 
-      {door === "non" ? (
+      {door === "non" && session.data.direction_chosen == null ? (
         <Notice tone="warning">
-          Identité visuelle à créer : la prochaine version du produit proposera trois directions (palette, polices, logo, moodboard). En attendant, la direction visuelle notée à l’étape précédente guide les images.
+          Identité visuelle à créer : <Link href="/onboarding/identite" className="font-semibold underline underline-offset-4">proposer trois directions</Link> avant de valider, sinon les images suivront la direction notée à l’étape précédente.
         </Notice>
       ) : null}
 

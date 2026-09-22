@@ -133,6 +133,14 @@ export async function rebuildBrandOS(args: { brandId: string; orgId: string; use
   const result = await buildBrandOS({ source, nameHint: brand?.name ?? null });
   // Never replace the current Brand OS with a deterministic draft: a rebuild is only worth a real analysis.
   if (result.source === "fallback") return "fallback" as const;
+  // An identity created and chosen with Brand OS (door B) is a decision, not an analysis: a re-analysis keeps it.
+  const chosenIdentity = Boolean((brand?.data as { identity?: unknown } | null)?.identity);
+  const current = isBrandOS(os?.canon) ? os.canon : null;
+  if (chosenIdentity && current) {
+    result.os.visual = { ...result.os.visual, palette: current.visual.palette, style: current.visual.style, mood: current.visual.mood };
+    if (current.graphic) result.os.graphic = current.graphic;
+    if (current.identity) result.os.identity = { ...result.os.identity, ...current.identity };
+  }
   await insertOS(supabase, {
     ...args,
     version: (os?.version ?? 0) + 1,

@@ -17,6 +17,10 @@ export type OnboardingData = {
   scrape?: { url?: string; corpus?: string };
   /** Logo déposé pendant l'onboarding : chemin Storage et adresse publique. */
   logo?: { path: string; url: string };
+  /** Porte B : les directions proposées (avec leurs images) et celle qui a été choisie. */
+  directions?: unknown[];
+  direction_chosen?: number | null;
+  identity_brief?: { ambition?: string; references?: string };
 };
 
 export type OnboardingSession = {

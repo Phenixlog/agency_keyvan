@@ -17,6 +17,9 @@ export type BoardData = {
   siteUrl: string | null;
   /** Kept creations, newest first: the brand as it actually looks. */
   wall: { src: string; alt: string }[];
+  /** Base assets of an identity created by Brand OS (door B): logo, dark logo, avatar, moodboard. */
+  assets: { kind: string; label: string; url: string }[];
+  identityDirection: string | null;
 };
 
 /** Works with the signed-in user's client (RLS) and with the service client (public link). */
@@ -28,7 +31,7 @@ export async function loadBoard(supabase: SupabaseClient, brandId: string): Prom
   ]);
   if (!brand || !os || !isBrandOS(os.canon)) return null;
 
-  const data = (brand.data ?? {}) as { url?: string | null; site?: { logo?: string | null } | null; logo?: { url?: string } | null };
+  const data = (brand.data ?? {}) as { url?: string | null; site?: { logo?: string | null } | null; logo?: { url?: string } | null; identity?: { direction?: string; assets?: { kind: string; label: string; url: string }[] } | null };
   return {
     name: brand.name as string,
     canon: os.canon,
@@ -38,6 +41,8 @@ export async function loadBoard(supabase: SupabaseClient, brandId: string): Prom
     // A logo dropped during onboarding beats the one guessed from the site's <head>.
     logo: data.logo?.url ?? data.site?.logo ?? null,
     siteUrl: data.url ?? null,
+    assets: (data.identity?.assets ?? []).filter((a) => typeof a?.url === "string"),
+    identityDirection: data.identity?.direction ?? null,
     wall: (outs ?? [])
       .map((out) => ({ src: outImageUrl(out.payload as OutPayload | null), alt: (out.payload as OutPayload | null)?.brief ?? "" }))
       .filter((image): image is { src: string; alt: string } => Boolean(image.src)),
