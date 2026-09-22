@@ -210,11 +210,21 @@ export type TextCheck = { ok: boolean; expected: string[]; found: string[]; issu
 
 const normalise = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-/** Every expected text must appear, in order-insensitive substring terms, in what was read back. */
+/**
+ * Every expected text must be read back: its words, in order, possibly interrupted (a headline drawn on
+ * two lines with the logo between them is transcribed as three blocks — seen live, and not a typo).
+ * Missing or misspelled words are what a typo looks like.
+ */
 export function compareTexts(plan: TileCopy, found: string[]): TextCheck {
   const expected = [plan.headline, plan.subline, plan.caption, plan.cta, ...(plan.items ?? [])].filter(Boolean);
-  const haystack = normalise(found.join(" "));
-  const issues = expected.filter((text) => !haystack.includes(normalise(text)));
+  const haystack = normalise(found.join(" ")).split(" ").filter(Boolean);
+  const readBack = (text: string) => {
+    const words = normalise(text).split(" ").filter(Boolean);
+    let i = 0;
+    for (const word of haystack) if (word === words[i]) i++;
+    return i === words.length;
+  };
+  const issues = expected.filter((text) => !readBack(text));
   return { ok: issues.length === 0, expected, found, issues };
 }
 
