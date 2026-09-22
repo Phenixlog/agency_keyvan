@@ -151,9 +151,9 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
                         <Download size={16} strokeWidth={1.75} /> Télécharger le visuel
                       </a>
                     ) : (
-                      <ButtonLink href={studioHref(upcoming)} className={ON_BRAND_BUTTON}>
+                      <Link href={studioHref(upcoming)} className={ON_BRAND_BUTTON}>
                         <Wand2 size={16} strokeWidth={1.75} /> Créer le visuel
-                      </ButtonLink>
+                      </Link>
                     )}
                     {upcoming.caption ? (
                       <CopyText text={upcoming.caption} label="Copier la légende" copiedLabel="Légende copiée" />
