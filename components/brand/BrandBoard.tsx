@@ -327,6 +327,52 @@ export function BrandBoard({ board, editable = false }: { board: BoardData; edit
         </Section>
       </div>
 
+      {/* ---- Le système graphique des tuiles avec texte ---- */}
+      {canon.graphic ? (
+        <Section title="Le système des tuiles" review="Je veux revoir le système graphique des posts avec texte : fonds, polices, forme signature, stickers, titres, logo." editable={editable}>
+          <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid gap-3">
+              <span className="font-mono text-meta text-mute">Trois fonds qui alternent</span>
+              <div className="flex overflow-hidden rounded-inner">
+                {(["brand", "light", "dark"] as const).map((key) => {
+                  const hex = canon.graphic!.backgrounds[key].match(/#[0-9a-f]{6}\b/i)?.[0];
+                  return (
+                    <div key={key} className={`grid min-h-24 flex-1 content-end p-3 ${hex ? "" : "hatch bg-soft"}`} style={hex ? ({ backgroundColor: hex, color: onBrand(hex) } as CSSProperties) : undefined}>
+                      <span className="text-small font-semibold">{key === "brand" ? "Marque" : key === "light" ? "Clair" : "Sombre"}</span>
+                      <span className="font-mono text-meta opacity-80">{hex ?? "code à préciser"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {canon.graphic.fonts.display || canon.graphic.fonts.body ? (
+                <p className="font-mono text-meta text-mute">Polices · {[canon.graphic.fonts.display, canon.graphic.fonts.body].filter(Boolean).join(" / ")}</p>
+              ) : null}
+            </div>
+            <dl className="grid content-start gap-3">
+              {(
+                [
+                  ["Forme signature", canon.graphic.shape],
+                  ["Stickers et accents", canon.graphic.stickers],
+                  ["Titres", canon.graphic.titles],
+                  ["Logo", canon.graphic.logoRule],
+                ] as const
+              ).map(([term, value]) =>
+                value ? (
+                  <div key={term} className="grid gap-0.5 border-t border-line pt-3">
+                    <dt className="font-mono text-meta text-mute">{term}</dt>
+                    <dd className="text-small text-ink">{value}</dd>
+                  </div>
+                ) : null
+              )}
+            </dl>
+          </div>
+        </Section>
+      ) : editable ? (
+        <Section title="Le système des tuiles" review="Posons le système graphique des posts avec texte de cette marque : trois fonds (marque, clair, sombre), deux polices Google Fonts, une forme signature, un style de stickers, le traitement des titres, la règle du logo." editable={editable}>
+          <p className="text-small text-mute print:hidden">Pas encore posé : les tuiles avec texte utilisent la palette et des réglages sobres. Demandez-le à l’expert, ou relancez l’analyse.</p>
+        </Section>
+      ) : null}
+
       {/* ---- Stratégie ---- */}
       {canon.strategy || editable ? (
         <Section title="Stratégie" review="Posons la stratégie de cette marque : objectifs, canaux, angles, rythme." editable={editable}>

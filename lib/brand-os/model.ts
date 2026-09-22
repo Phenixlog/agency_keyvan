@@ -30,7 +30,45 @@ export type BrandOS = {
   presence?: BrandPresence;
   /** L'identité visuelle matérielle : logo, polices, non-négociables. */
   identity?: BrandIdentity;
+  /** Le système graphique des tuiles avec texte : fonds, polices, forme, stickers, titres. */
+  graphic?: BrandGraphic;
 };
+
+export type BrandGraphic = {
+  /** Trois fonds qui alternent dans le feed, chacun « nom #RRGGBB ». */
+  backgrounds: { brand: string; light: string; dark: string };
+  /** Deux polices (Google Fonts de préférence) : titres, texte. */
+  fonts: { display: string; body: string };
+  /** La forme signature qui traverse les tuiles (arc, ruban, bloc, cadre ondulé…), en anglais pour le modèle d'image. */
+  shape: string;
+  /** Le style des stickers et accents (pilules, soulignés, flèches…), en anglais. */
+  stickers: string;
+  /** Le traitement des titres (gras, capitales, souligné, surligné…), en anglais. */
+  titles: string;
+  /** Où et comment le logo se pose, en français pour l'utilisateur. */
+  logoRule: string;
+};
+
+/** Sans système graphique posé : dérivé de la palette, le reste sobre. Jamais stocké, calculé à la génération. */
+export function fallbackGraphic(os: BrandOS | null): BrandGraphic {
+  const palette = os?.visual.palette ?? [];
+  const hexes = palette.map((c) => c.match(/#[0-9a-f]{6}\b/i)?.[0]).filter((h): h is string => Boolean(h));
+  const luminance = (hex: string) => {
+    const n = parseInt(hex.slice(1), 16);
+    return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  };
+  const light = hexes.find((h) => luminance(h) > 0.8) ?? "#F6F4EE";
+  const dark = hexes.find((h) => luminance(h) < 0.25) ?? "#1A1815";
+  const brand = hexes.find((h) => h !== light && h !== dark) ?? hexes[0] ?? "#4866ED";
+  return {
+    backgrounds: { brand: `brand colour ${brand}`, light: `light ${light}`, dark: `dark ${dark}` },
+    fonts: { display: os?.identity?.fonts.display ?? "", body: os?.identity?.fonts.body ?? "" },
+    shape: "a soft rounded block of the brand colour bleeding off one edge",
+    stickers: "small pills with the brand colour, thin underlines under one key word",
+    titles: "bold, large, tight leading, sentence case",
+    logoRule: "Petit, dans un coin, jamais sur le titre.",
+  };
+}
 
 export type BrandVoice = {
   says: string[];
@@ -333,7 +371,7 @@ const STRING_ARRAY = { type: "array", items: { type: "string" } } as const;
 export const BRAND_OS_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "positioning", "audience", "promise", "tone", "voice", "pillars", "visual", "business", "audiences", "offers", "presence", "mega_intro"],
+  required: ["name", "positioning", "audience", "promise", "tone", "voice", "pillars", "visual", "business", "audiences", "offers", "presence", "graphic", "mega_intro"],
   properties: {
     name: { type: "string", description: "Nom de la marque tel qu'elle se présente" },
     positioning: { type: "string", description: "1-2 phrases : pour qui, quoi, en quoi c'est différent" },
@@ -424,6 +462,32 @@ export const BRAND_OS_SCHEMA = {
         push: { ...STRING_ARRAY, description: "Canaux qu'il serait logique de pousser, 1 à 3" },
         formats: { ...STRING_ARRAY, description: `Formats à savoir sortir en priorité, parmi : ${FORMAT_PRIORITIES.join(", ")}` },
         frequency: { type: "string", enum: ["light", "steady", "agressif", ""], description: "Fréquence de publication qui convient à cette marque. Vide si inconnu." },
+      },
+    },
+    graphic: {
+      type: "object",
+      additionalProperties: false,
+      required: ["backgrounds", "fonts", "shape", "stickers", "titles", "logoRule"],
+      description: "Le système graphique des posts avec texte : ce qui rend un feed reconnaissable en trois tuiles.",
+      properties: {
+        backgrounds: {
+          type: "object",
+          additionalProperties: false,
+          required: ["brand", "light", "dark"],
+          description: "Trois fonds qui alternent dans le feed, CHACUN au format « nom #RRGGBB », cohérents avec la palette",
+          properties: { brand: { type: "string", description: "Le fond couleur de marque" }, light: { type: "string", description: "Le fond clair (crème, blanc cassé…)" }, dark: { type: "string", description: "Le fond sombre" } },
+        },
+        fonts: {
+          type: "object",
+          additionalProperties: false,
+          required: ["display", "body"],
+          description: "Deux polices Google Fonts : celle des titres, celle du texte. Reprends celles de la marque si connues.",
+          properties: { display: { type: "string" }, body: { type: "string" } },
+        },
+        shape: { type: "string", description: "In ENGLISH, 6-20 words: the signature shape that runs across the tiles (an arc, a ribbon, a wavy frame, a torn paper edge…)" },
+        stickers: { type: "string", description: "In ENGLISH, 6-20 words: the style of stickers and accents (pills, hand-drawn underlines, arrows, badges…)" },
+        titles: { type: "string", description: "In ENGLISH, 6-20 words: how titles are treated (bold uppercase, serif italic, highlighted word, underlined…)" },
+        logoRule: { type: "string", description: "En français, une phrase : où et comment le logo se pose sur les tuiles (petit, dans un coin, jamais au centre…)" },
       },
     },
     mega_intro: {
@@ -578,6 +642,8 @@ export function renderSummary(os: BrandOS): string {
     line("Offres phares", (os.offers?.items ?? []).map((o) => o.name).join(" · ")),
     line("Contraintes légales", os.offers?.legal.join(" · ") ?? ""),
     line("Non-négociables visuels", os.identity?.nonNegotiables.join(" · ") ?? ""),
+    line("Fonds des tuiles", os.graphic ? [os.graphic.backgrounds.brand, os.graphic.backgrounds.light, os.graphic.backgrounds.dark].join(", ") : ""),
+    line("Polices", os.graphic ? [os.graphic.fonts.display, os.graphic.fonts.body].filter(Boolean).join(" / ") : ""),
   ]
     .filter(Boolean)
     .join("\n");

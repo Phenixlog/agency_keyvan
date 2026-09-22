@@ -24,6 +24,8 @@ export type OutPayload = {
   reference_url?: string | null;
   parent_out_id?: string | null;
   batch_id?: string | null;
+  tile?: { kind: string; background: string; copy: { headline: string; subline: string; caption: string; cta: string }; logo: boolean } | null;
+  text_check?: { ok: boolean; expected: string[]; found: string[]; issues: string[] } | null;
 };
 
 /** Subject given to the editing model when the reference is one of our own creations ("Mettre en situation"). */

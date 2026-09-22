@@ -1,5 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { acceptedChoices, getMediumBrief, guidanceWithAnswers } from "@/lib/expertise";
+import { checkTileText, tilePrompt, type Background, type TileKind, type TilePlan } from "@/lib/tiles";
+import { fallbackGraphic } from "@/lib/brand-os/model";
 import { fetchTaskResult, hashForFilename, submitImageTask } from "@/lib/wavespeed";
 import {
   composeImagePrompt,
@@ -40,7 +42,13 @@ type GenerationArgs = {
   answers?: Record<string, string>;
   /** Medium guidance already resolved by the caller (the three proposals of a brief share one). */
   mediumGuidance?: string;
+  /** A tile with text: the words (already approved by the user), the kind of tile and which background to use. */
+  tile?: { kind: TileKind; plan: TilePlan; background: Background } | null;
+  /** The brand's real logo, sent as a reference so the image model reproduces it instead of inventing one. */
+  logoUrl?: string | null;
 };
+
+const BACKGROUND_ROTATION: Background[] = ["brand", "light", "dark"];
 
 const POLL_INTERVAL_MS = 800;
 // GPT Image takes 20-60 s per picture, more at 4k or when editing from a reference.
@@ -54,7 +62,12 @@ export const PROPOSALS_PER_BRIEF = 3;
 export async function queueProposals(args: GenerationArgs & { format: ImageFormat }, count = PROPOSALS_PER_BRIEF) {
   const batchId = crypto.randomUUID();
   const mediumGuidance = await resolveMediumGuidance(args);
-  const results = await Promise.all(Array.from({ length: count }, () => queueImageGeneration({ ...args, batchId, mediumGuidance })));
+  // Tiles with text: the three proposals show the three faces of the graphic system (brand / light / dark).
+  const results = await Promise.all(
+    Array.from({ length: count }, (_, i) =>
+      queueImageGeneration({ ...args, batchId, mediumGuidance, tile: args.tile ? { ...args.tile, background: BACKGROUND_ROTATION[i % BACKGROUND_ROTATION.length] } : null })
+    )
+  );
   return { batchId, jobIds: results.map((r) => r.jobId) };
 }
 
@@ -80,6 +93,8 @@ export async function queueImageGeneration(
   const supabase = await createSupabaseServerClient();
   const format = resolveFormat(args.format, args.custom);
   const mediumGuidance = await resolveMediumGuidance(args);
+  // The logo is a reference image too, but the semantics stay "describe": the picture is drawn, the logo is placed on it.
+  const withLogo = Boolean(args.tile && args.logoUrl && !args.referenceUrl);
   const mode: ImageMode = args.referenceUrl ? (args.mode === "retouch" ? "retouch" : "restage") : "describe";
 
   // Fetch latest OS + Mega
@@ -99,9 +114,22 @@ export async function queueImageGeneration(
       .limit(1)
       .maybeSingle(),
   ]);
-  // The image model needs a description of a picture, not brand strategy:
-  // an LLM turns Brand OS + learned rules + brief into that description.
-  const composedPrompt = await composeImagePrompt({
+  const canon = isBrandOS(os?.canon) ? os.canon : null;
+  // A tile with text is assembled by code so the words reach the image model untouched;
+  // a picture without text is described by an LLM from Brand OS + learned rules + brief.
+  const composedPrompt = args.tile && mode === "describe"
+    ? tilePrompt({
+        plan: args.tile.plan,
+        kind: args.tile.kind,
+        background: args.tile.background,
+        graphic: canon?.graphic ?? fallbackGraphic(canon),
+        os: canon,
+        aspectRatio: format.aspectRatio,
+        hasLogo: withLogo,
+        brandName: canon?.name ?? "the brand",
+        direction: mediumGuidance,
+      })
+    : await composeImagePrompt({
     os: isBrandOS(os?.canon) ? os.canon : null,
     summary: os?.summary || "",
     mega: normalizeMega(mega?.content),
@@ -141,12 +169,12 @@ export async function queueImageGeneration(
       prompt: composedPrompt,
       aspectRatio: format.aspectRatio,
       resolution: format.resolution,
-      images: args.referenceUrl ? [args.referenceUrl] : undefined,
+      images: args.referenceUrl ? [args.referenceUrl] : withLogo ? [args.logoUrl!] : undefined,
     });
 
     // Poll for result (bounded)
     let outputs: string[] | undefined;
-    for (let attempt = 0; attempt < MAX_POLLS[mode === "describe" ? "describe" : "edit"]; attempt++) {
+    for (let attempt = 0; attempt < MAX_POLLS[mode === "describe" && !withLogo ? "describe" : "edit"]; attempt++) {
       const res = await fetchTaskResult(taskId);
       const status = (res.data?.status || "").toLowerCase();
       if (status === "completed" || status === "succeeded") {
@@ -184,6 +212,9 @@ export async function queueImageGeneration(
       // Ignore storage failures; we'll persist external URL
     }
 
+    // A tile with text: read the image back and compare with the words asked for (typos happen).
+    const textCheck = args.tile ? await checkTileText(imageUrl, args.tile.plan) : null;
+
     // Insert out (draft)
     const payload = {
       kind: format.kind,
@@ -203,6 +234,9 @@ export async function queueImageGeneration(
       storage_path: storagePath || null,
       prompt: composedPrompt,
       job_id: jobId,
+      // Tile with text: the words drawn, the background used, and whether the model spelled them right.
+      tile: args.tile ? { kind: args.tile.kind, background: args.tile.background, copy: { headline: args.tile.plan.headline, subline: args.tile.plan.subline, caption: args.tile.plan.caption, cta: args.tile.plan.cta }, logo: withLogo } : null,
+      text_check: textCheck,
     };
     const { data: out, error: outErr } = await supabase
       .from("outs")

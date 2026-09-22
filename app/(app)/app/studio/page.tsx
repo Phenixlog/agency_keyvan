@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Archive, ArchiveRestore, CalendarPlus, Clock, Download, ImageOff, MessageSquareText, Pin, Shirt, Wand2, X } from "lucide-react";
+import { Archive, ArchiveRestore, CalendarPlus, Clock, Download, ImageOff, MessageSquareText, Pin, Shirt, TriangleAlert, Wand2, X } from "lucide-react";
 import { formatLabel } from "@/components/app/OutTile";
 import { AssetUploader } from "@/components/studio/AssetUploader";
 import { FormatPicker } from "@/components/studio/FormatPicker";
@@ -11,6 +11,7 @@ import { ASPECT_RATIOS, FORMAT_FAMILIES, IMAGE_FORMATS, OFFERED_FORMATS } from "
 import { PROPOSALS_PER_BRIEF } from "@/lib/jobs/engine";
 import { isStagedCreation, outImageUrl, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { BACKGROUND_LABEL, TILE_KINDS, type Background } from "@/lib/tiles/model";
 import { getWorkspace, isValidated } from "@/lib/workspace";
 import { ValidationGate } from "@/components/app/ValidationGate";
 import { createProposals, removeAsset, retouch, setStatus } from "./actions";
@@ -56,6 +57,10 @@ export default async function StudioPage({
       : { data: null };
   const refPayload = (refOut?.payload ?? null) as OutPayload | null;
   const refSrc = outImageUrl(refPayload);
+  // The brand's logo, if any: tiles with text get it as a reference so the model reproduces the real one.
+  const { data: brandRow } = await supabase.from("brands").select("data").eq("id", brand.id).maybeSingle();
+  const brandData = (brandRow?.data ?? {}) as { logo?: { url?: string }; site?: { logo?: string | null } };
+  const logoUrl = brandData.logo?.url ?? brandData.site?.logo ?? null;
   const fresh = (outs ?? []).filter((out) => lot && (out.payload as OutPayload | null)?.batch_id === lot);
   const failed = lot ? PROPOSALS_PER_BRIEF - fresh.length : 0;
   const rules = mega?.rules.length ?? 0;
@@ -160,11 +165,13 @@ export default async function StudioPage({
 
                 <FormatPicker
                   formats={OFFERED_FORMATS.map((key) => {
-                    const { label, hint, family, aspectRatio, resolution } = IMAGE_FORMATS[key];
-                    return { key, label, hint, family, aspectRatio, resolution };
+                    const { label, hint, family, aspectRatio, resolution, nature } = IMAGE_FORMATS[key];
+                    return { key, label, hint, family, aspectRatio, resolution, nature: nature ?? "photo" };
                   })}
                   families={FORMAT_FAMILIES}
                   ratios={ASPECT_RATIOS}
+                  tileKinds={TILE_KINDS}
+                  hasLogo={Boolean(logoUrl)}
                   defaultFormat={refOut ? "tshirt_mockup" : "social_square"}
                 />
 
@@ -249,13 +256,24 @@ export default async function StudioPage({
                           {status === "ready" ? <Pin size={12} strokeWidth={1.75} /> : status === "archived" ? <Archive size={12} strokeWidth={1.75} /> : <Clock size={12} strokeWidth={1.75} />}
                           {status === "ready" ? "Gardée" : status === "archived" ? "Archivée" : "Brouillon"}
                         </span>
+                        {payload?.text_check && !payload.text_check.ok ? (
+                          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-pill bg-warning-tint px-2 py-1 font-mono text-meta text-warning" title={`Attendu : ${payload.text_check.issues.join(" · ")}`}>
+                            <TriangleAlert size={12} strokeWidth={1.75} /> Texte à vérifier
+                          </span>
+                        ) : null}
                       </div>
 
                       <div className="grid gap-1">
-                        <p className="line-clamp-2 text-small text-ink">{payload?.instruction ? `Retouche : ${payload.instruction}` : payload?.brief || "Sans brief"}</p>
+                        <p className="line-clamp-2 text-small text-ink">{payload?.tile ? payload.tile.copy.headline : payload?.instruction ? `Retouche : ${payload.instruction}` : payload?.brief || "Sans brief"}</p>
                         <Meta>
-                          {format} · {DATE.format(new Date(out.created_at))}
+                          {format}
+                          {payload?.tile ? ` · ${TILE_KINDS[payload.tile.kind as keyof typeof TILE_KINDS]?.label ?? "tuile"} · ${BACKGROUND_LABEL[payload.tile.background as Background] ?? payload.tile.background}` : ""} · {DATE.format(new Date(out.created_at))}
                         </Meta>
+                        {payload?.text_check && !payload.text_check.ok ? (
+                          <p className="text-small text-warning">
+                            Le modèle n’a pas écrit exactement : {payload.text_check.issues.map((t) => `« ${t} »`).join(", ")}. Il a écrit : {payload.text_check.found.map((t) => `« ${t} »`).join(" ")}. Retouchez, ou relancez.
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className="flex flex-wrap gap-2">
@@ -324,6 +342,16 @@ export default async function StudioPage({
                                 : `${MODE_LABEL[payload?.mode ?? "describe"]}${payload?.subject ? ` (« ${payload.subject} »)` : ""}`}
                             </dd>
                           </div>
+                          {payload?.tile ? (
+                            <div>
+                              <dt><Meta>Texte demandé</Meta></dt>
+                              <dd className="text-small text-ink">
+                                {[payload.tile.copy.headline, payload.tile.copy.subline, payload.tile.copy.caption, payload.tile.copy.cta].filter(Boolean).map((t) => `« ${t} »`).join(" · ")}
+                                {payload.text_check ? (payload.text_check.ok ? " — relu sur l’image : conforme." : " — relu sur l’image : écart signalé.") : " — relecture indisponible."}
+                                {payload.tile.logo ? " Logo de la marque posé en référence." : ""}
+                              </dd>
+                            </div>
+                          ) : null}
                           <div>
                             <dt><Meta>Ce qui a été envoyé au modèle d’image</Meta></dt>
                             <dd className="text-small text-mute">{payload?.prompt || "Non enregistré."}</dd>

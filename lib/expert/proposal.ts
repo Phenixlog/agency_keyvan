@@ -4,7 +4,7 @@
  * Module pur : il ne connaît ni la base ni le réseau, et ne fait confiance à aucune entrée.
  */
 // Type-only import: erased at runtime, so the node test runner never resolves the alias.
-import type { BrandOS, BrandStrategy, BrandVoice, Cadence, MegaPrompt } from "@/lib/brand-os/model";
+import type { BrandGraphic, BrandOS, BrandStrategy, BrandVoice, Cadence, MegaPrompt } from "@/lib/brand-os/model";
 
 export type Proposal = {
   /** Le changement en une ligne, tel qu'il apparaîtra dans l'historique. */
@@ -20,6 +20,7 @@ export type Proposal = {
     pillars?: string[];
     visual?: { palette?: string[]; style?: string; mood?: string; avoid?: string[] };
     strategy?: Partial<BrandStrategy>;
+    graphic?: Partial<BrandGraphic>;
   };
   /** Consignes créatives permanentes (le texte du mega-prompt). */
   guidance?: string;
@@ -108,6 +109,9 @@ export function parseProposal(input: unknown): Proposal | null {
   const visual = (os.visual ?? {}) as Record<string, unknown>;
   const voice = (os.voice ?? {}) as Record<string, unknown>;
   const strategy = (os.strategy ?? {}) as Record<string, unknown>;
+  const graphic = (os.graphic ?? {}) as Record<string, unknown>;
+  const backgrounds = (graphic.backgrounds ?? {}) as Record<string, unknown>;
+  const fonts = (graphic.fonts ?? {}) as Record<string, unknown>;
   const rules = (d.rules ?? {}) as Record<string, unknown>;
 
   const replace = Array.isArray(rules.replace)
@@ -129,6 +133,14 @@ export function parseProposal(input: unknown): Proposal | null {
       pillars: list(os.pillars),
       visual: compact({ palette: list(visual.palette), style: str(visual.style, MAX_TEXT), mood: str(visual.mood, MAX_TEXT), avoid: list(visual.avoid) }),
       strategy: compact({ objectives: list(strategy.objectives), channels: list(strategy.channels), angles: list(strategy.angles), rhythm: str(strategy.rhythm, MAX_TEXT), cadence: cadence(strategy.cadence) }),
+      graphic: compact({
+        backgrounds: compact({ brand: str(backgrounds.brand, MAX_ITEM), light: str(backgrounds.light, MAX_ITEM), dark: str(backgrounds.dark, MAX_ITEM) }) as BrandGraphic["backgrounds"] | undefined,
+        fonts: compact({ display: str(fonts.display, 60), body: str(fonts.body, 60) }) as BrandGraphic["fonts"] | undefined,
+        shape: str(graphic.shape, MAX_ITEM),
+        stickers: str(graphic.stickers, MAX_ITEM),
+        titles: str(graphic.titles, MAX_ITEM),
+        logoRule: str(graphic.logoRule, MAX_ITEM),
+      }),
     }),
     guidance: str(d.guidance, MAX_GUIDANCE),
     rules: compact({ add: list(rules.add), remove: list(rules.remove), replace: replace.length ? replace : undefined }),
@@ -143,6 +155,7 @@ export function parseProposal(input: unknown): Proposal | null {
 /* ------------------------------------------------------------------ */
 
 const EMPTY_STRATEGY: BrandStrategy = { objectives: [], channels: [], angles: [], rhythm: "" };
+const EMPTY_GRAPHIC: BrandGraphic = { backgrounds: { brand: "", light: "", dark: "" }, fonts: { display: "", body: "" }, shape: "", stickers: "", titles: "", logoRule: "" };
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 export function applyToBrandOS(os: BrandOS, proposal: Proposal): BrandOS {
@@ -150,12 +163,22 @@ export function applyToBrandOS(os: BrandOS, proposal: Proposal): BrandOS {
   if (!patch) return os;
   const strategy = patch.strategy ? { ...EMPTY_STRATEGY, ...os.strategy, ...patch.strategy } : os.strategy;
   const voice = patch.voice ? { says: [], never: [], ...os.voice, ...patch.voice } : os.voice;
+  const graphic = patch.graphic
+    ? {
+        ...EMPTY_GRAPHIC,
+        ...os.graphic,
+        ...patch.graphic,
+        backgrounds: { ...EMPTY_GRAPHIC.backgrounds, ...os.graphic?.backgrounds, ...patch.graphic.backgrounds },
+        fonts: { ...EMPTY_GRAPHIC.fonts, ...os.graphic?.fonts, ...patch.graphic.fonts },
+      }
+    : os.graphic;
   return {
     ...os,
     ...compact({ positioning: patch.positioning, audience: patch.audience, promise: patch.promise, tone: patch.tone, pillars: patch.pillars }),
     visual: { ...os.visual, ...patch.visual },
     ...(voice ? { voice } : {}),
     ...(strategy ? { strategy } : {}),
+    ...(graphic ? { graphic } : {}),
   };
 }
 
@@ -180,6 +203,7 @@ export type Change = { label: string; before: string; after: string };
 
 const show = (value: string | readonly string[] | undefined) => (Array.isArray(value) ? value.join(" · ") : ((value as string | undefined) ?? "")).trim();
 
+const showGraphicBackgrounds = (g: BrandGraphic | undefined) => (g ? [g.backgrounds.brand, g.backgrounds.light, g.backgrounds.dark].filter(Boolean) : []);
 const showCadence = (value: readonly Cadence[] | undefined) => (value ?? []).map((c) => `${c.channel} ${c.perWeek}/semaine`);
 
 /** Uniquement ce qui change réellement : une proposition qui redit l'existant ne montre rien. */
@@ -203,6 +227,12 @@ export function describeChanges(os: BrandOS, mega: MegaPrompt, proposal: Proposa
     ["Stratégie · angles", os.strategy?.angles, nextOS.strategy?.angles],
     ["Stratégie · rythme", os.strategy?.rhythm, nextOS.strategy?.rhythm],
     ["Stratégie · cadence", showCadence(os.strategy?.cadence), showCadence(nextOS.strategy?.cadence)],
+    ["Tuiles · fonds", showGraphicBackgrounds(os.graphic), showGraphicBackgrounds(nextOS.graphic)],
+    ["Tuiles · polices", [os.graphic?.fonts.display, os.graphic?.fonts.body].filter(Boolean) as string[], [nextOS.graphic?.fonts.display, nextOS.graphic?.fonts.body].filter(Boolean) as string[]],
+    ["Tuiles · forme signature", os.graphic?.shape, nextOS.graphic?.shape],
+    ["Tuiles · stickers", os.graphic?.stickers, nextOS.graphic?.stickers],
+    ["Tuiles · titres", os.graphic?.titles, nextOS.graphic?.titles],
+    ["Tuiles · logo", os.graphic?.logoRule, nextOS.graphic?.logoRule],
     ["Consignes créatives", mega.intro, nextMega.intro],
   ];
   const changes = pairs

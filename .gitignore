@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Références Pinterest de Keyvan (analyse locale), ne partent pas en production
+public/social_media/

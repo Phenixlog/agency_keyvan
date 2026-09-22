@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { archiveAsset, getAsset, registerAsset } from "@/lib/assets";
 import { OFFERED_FORMATS, resolveFormat, type CustomFormat, type ImageFormat } from "@/lib/brand-os";
 import { queueImageGeneration, queueProposals } from "@/lib/jobs/engine";
+import { LOGO_PLACEMENTS, isTileKind, parseTilePlan, type LogoPlacement } from "@/lib/tiles";
 import { CREATION_AS_REFERENCE, outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
@@ -36,6 +37,31 @@ function answersFrom(formData: FormData): Record<string, string> {
   return answers;
 }
 
+/** "Avec texte": the words the user approved, and the kind of tile. Null when the image has no text. */
+function tileFrom(formData: FormData) {
+  if (String(formData.get("tile_mode") || "") !== "text") return null;
+  const kindValue = String(formData.get("tile_kind") || "");
+  const placement = String(formData.get("tile_logo_placement") || "");
+  const plan = parseTilePlan({
+    headline: formData.get("tile_headline"),
+    subline: formData.get("tile_subline"),
+    caption: formData.get("tile_caption"),
+    cta: formData.get("tile_cta"),
+    scene: formData.get("tile_scene"),
+    logoPlacement: (LOGO_PLACEMENTS as readonly string[]).includes(placement) ? (placement as LogoPlacement) : "top-left",
+  });
+  if (!plan) return null;
+  return { kind: isTileKind(kindValue) ? kindValue : ("hook_photo" as const), plan, background: "brand" as const };
+}
+
+/** The brand's own logo (dropped at onboarding, or read from its site), to be reproduced on tiles. */
+async function brandLogo(brandId: string): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.from("brands").select("data").eq("id", brandId).maybeSingle();
+  const d = (data?.data ?? {}) as { logo?: { url?: string }; site?: { logo?: string | null } };
+  return d.logo?.url ?? d.site?.logo ?? null;
+}
+
 /**
  * Three proposals for one brief — from words, or from a photo of the client's real product.
  * Generation runs inside the action (≈ 30 s): callers show a pending SubmitButton.
@@ -55,6 +81,9 @@ export async function createProposals(formData: FormData) {
     refCreation = outImageUrl((out?.payload ?? null) as OutPayload | null);
   }
 
+  // A tile with text cannot also restage a reference photo: the words win, the reference is dropped.
+  const tile = tileFrom(formData);
+  const reference = tile ? null : (asset?.url ?? refCreation);
   const { batchId } = await queueProposals({
     orgId: brand.org_id,
     brandId: brand.id,
@@ -62,10 +91,12 @@ export async function createProposals(formData: FormData) {
     brief,
     ...requestedFormat(formData),
     answers: answersFrom(formData),
-    referenceUrl: asset?.url ?? refCreation,
-    subject: asset?.label ?? (refCreation ? CREATION_AS_REFERENCE : null),
-    mode: asset || refCreation ? "restage" : "describe",
-    parentOutId: refCreation ? refOutId : null,
+    referenceUrl: reference,
+    subject: reference ? (asset?.label ?? CREATION_AS_REFERENCE) : null,
+    mode: reference ? "restage" : "describe",
+    parentOutId: !tile && refCreation ? refOutId : null,
+    tile,
+    logoUrl: tile ? await brandLogo(brand.id) : null,
   });
   redirect(`/app/studio?lot=${batchId}`);
 }

@@ -37,6 +37,8 @@ type ChatJsonArgs = {
   model: string;
   system: string;
   user: string;
+  /** Public image URLs joined to the user message (vision): the model reads them, they cost ~1 500 tokens each. */
+  imageUrls?: string[];
   schemaName: string;
   schema: JsonSchema;
   maxTokens?: number;
@@ -85,7 +87,10 @@ async function chatJsonOnce<T>(args: ChatJsonArgs): Promise<T> {
       model: args.model,
       messages: [
         { role: "system", content: args.system },
-        { role: "user", content: args.user },
+        {
+          role: "user",
+          content: args.imageUrls?.length ? [{ type: "text", text: args.user }, ...args.imageUrls.map((url) => ({ type: "image_url", image_url: { url } }))] : args.user,
+        },
       ],
       max_tokens: (args.maxTokens ?? 2000) + REASONING_HEADROOM_TOKENS,
       // Structured extraction and short rewrites do not need long deliberation.

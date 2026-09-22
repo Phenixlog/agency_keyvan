@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { GraduationCap, LoaderCircle, RefreshCw, Ruler } from "lucide-react";
 import type { LoadedBrief } from "@/lib/expertise";
+import { TileComposer } from "@/components/studio/TileComposer";
 
-export type PickerFormat = { key: string; label: string; hint: string; family: string; aspectRatio: string; resolution: string };
+export type PickerFormat = { key: string; label: string; hint: string; family: string; aspectRatio: string; resolution: string; nature: string };
 
 const CUSTOM = "custom";
 const TAB = "whitespace-nowrap rounded-pill px-3 py-2 text-small text-mute transition duration-(--duration-fast) ease-cimaise hover:text-ink aria-pressed:bg-ink aria-pressed:text-card";
@@ -31,11 +32,16 @@ export function FormatPicker({
   families,
   ratios,
   defaultFormat,
+  tileKinds,
+  hasLogo,
 }: {
   formats: PickerFormat[];
   families: Record<string, string>;
   ratios: readonly string[];
   defaultFormat: string;
+  /** The kinds of tiles with text; "Avec texte" is offered on photo formats and custom ones (not on artwork or mock-ups). */
+  tileKinds: Record<string, { label: string; hint: string }>;
+  hasLogo: boolean;
 }) {
   const initial = formats.find((f) => f.key === defaultFormat) ?? formats[0];
   const [family, setFamily] = useState<string>(initial.family);
@@ -178,6 +184,10 @@ export function FormatPicker({
             ))}
         </div>
       )}
+
+      {selected === CUSTOM || (current && current.nature === "photo") ? (
+        <TileComposer key={selected} kinds={tileKinds} format={selected} customUse={customUse} hasLogo={hasLogo} />
+      ) : null}
 
       <p className="flex items-center gap-2 text-small text-mute">
         <Ruler size={14} strokeWidth={1.75} className="flex-none" />
