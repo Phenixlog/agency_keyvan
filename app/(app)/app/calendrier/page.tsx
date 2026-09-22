@@ -29,7 +29,7 @@ import { isLlmConfigured } from "@/lib/llm/openrouter";
 import { outImageUrl } from "@/lib/outs";
 import { getWorkspace, isValidated } from "@/lib/workspace";
 import { ValidationGate } from "@/components/app/ValidationGate";
-import { accept, changeStatus, discard, edit, plan, propose, remove, share, unshare, writeCaption } from "./actions";
+import { accept, changeStatus, discard, edit, plan, propose, remove, retouchVisual, share, unshare, writeCaption } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,8 @@ const NOTICES = {
   invalide: ["danger", "Date, canal ou création invalide : rien n’a été enregistré."],
   refuse: ["danger", "La base a refusé l’écriture : les règles d’accès de cette table sont absentes ou incomplètes. Rejouez en entier supabase/migrations/0004_calendar.sql dans Supabase → SQL Editor."],
   legende: ["success", "Légende rédigée dans la voix de la marque. Relisez-la avant de publier."],
+  retouche: ["success", "Image retouchée : la nouvelle version a pris la place dans la publication. L’ancienne reste dans le Studio."],
+  "retouche-echec": ["danger", "La retouche n’a pas abouti (service d’images indisponible ou crédit épuisé). La publication garde son image."],
   "legende-echec": ["danger", "La légende n’a pas pu être rédigée. Réessayez dans un instant."],
   propose: ["success", "Brand OS a proposé ce qui manque ce mois-ci. Rien ne compte tant que vous n’avez pas validé : gardez, modifiez ou écartez."],
   "propose-repli": ["warning", "Le modèle n’a pas répondu : proposition calculée depuis la cadence seule (jours répartis, angles en rotation). Relancez pour une proposition réfléchie."],
@@ -626,6 +628,17 @@ function EntryRow({ entry, month, kept, llmReady }: { entry: EntryWithOut; month
                 <SubmitButton variant="soft" pendingLabel="Enregistrement…" className="justify-self-start">Enregistrer</SubmitButton>
               </div>
             </form>
+            {entry.out ? (
+              <form action={retouchVisual} className="grid gap-3 border-t border-line pt-4">
+                {hidden}
+                <Field label="Modifier cette image" hint="Un seul changement, en langage naturel : « plus de lumière », « enlève l’assiette », « le titre en plus gros ». La marque n’est pas modifiée ; pour ça, l’expert.">
+                  <Textarea name="instruction" rows={2} maxLength={300} required placeholder="Ce qui doit changer sur l’image" />
+                </Field>
+                <SubmitButton variant="soft" pendingLabel="Retouche en cours… (≈ 40 s)" className="justify-self-start">
+                  <Wand2 size={16} strokeWidth={1.75} /> Retoucher cette image
+                </SubmitButton>
+              </form>
+            ) : null}
             <div className="flex flex-wrap gap-2 border-t border-line pt-4">
               {llmReady ? (
                 <form action={writeCaption}>
