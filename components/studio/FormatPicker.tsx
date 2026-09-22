@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { GraduationCap, LoaderCircle, RefreshCw, Ruler } from "lucide-react";
 import type { LoadedBrief } from "@/lib/expertise";
 import { TileComposer } from "@/components/studio/TileComposer";
+import { BusinessCardComposer } from "@/components/studio/BusinessCardComposer";
 
 export type PickerFormat = { key: string; label: string; hint: string; family: string; aspectRatio: string; resolution: string; nature: string };
 
@@ -185,7 +186,9 @@ export function FormatPicker({
         </div>
       )}
 
-      {selected === CUSTOM || (current && current.nature === "photo") ? (
+      {selected === "business_card_front" ? (
+        <BusinessCardComposer hasLogo={hasLogo} />
+      ) : selected === CUSTOM || (current && current.nature === "photo") ? (
         <TileComposer key={selected} kinds={tileKinds} format={selected} customUse={customUse} hasLogo={hasLogo} />
       ) : null}
 

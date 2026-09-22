@@ -36,12 +36,12 @@ const TAB = "whitespace-nowrap rounded-pill px-4 py-2 text-small text-mute trans
 export default async function StudioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string; focus?: string; lot?: string; brief?: string; ref?: string; echec?: string }>;
+  searchParams: Promise<{ vue?: string; focus?: string; lot?: string; brief?: string; ref?: string; echec?: string; erreur?: string }>;
 }) {
   const { brand, os, mega } = await getWorkspace();
   if (!brand) redirect("/app/clients");
   if (!isValidated(brand)) return <ValidationGate brandName={brand.name} feature="Le Studio" />;
-  const { vue, focus, lot, brief: suggestedBrief, ref, echec } = await searchParams;
+  const { vue, focus, lot, brief: suggestedBrief, ref, echec, erreur } = await searchParams;
   // Why the lot came back short: said plainly, because a thinner wall says nothing (seen live: an empty image account).
   const failureLine = echec === "credits" ? " Cause : le compte du service d’images n’a plus de crédit. Rechargez-le, puis « Recréer »." : echec === "service" ? " Cause : le service d’images a refusé ou n’a pas répondu à temps. Réessayez dans un instant." : "";
   const library = vue === "phototheque";
@@ -69,7 +69,7 @@ export default async function StudioPage({
   // A series (feed, carousel) reads in its planned order, not in the order the images came back.
   const position = (out: { payload: unknown }) => {
     const p = out.payload as OutPayload | null;
-    return p?.carousel?.index ?? (p?.feed_index != null ? p.feed_index + 1 : null);
+    return p?.card ? p.card.pair * 2 - (p.card.face === "front" ? 1 : 0) : (p?.carousel?.index ?? (p?.feed_index != null ? p.feed_index + 1 : null));
   };
   (outs ?? []).sort((a, b) => {
     const aIn = lot && (a.payload as OutPayload | null)?.batch_id === lot;
@@ -252,6 +252,7 @@ export default async function StudioPage({
             <SeriesComposer hasLogo={Boolean(logoUrl)} />
           </Card>
 
+          {erreur === "carte" ? <Notice tone="warning">Une carte de visite a besoin d’un nom et d’au moins un moyen de contact (téléphone, e-mail, site, adresse ou réseau).</Notice> : null}
           {lot && fresh.length ? (
             <Notice tone={failed > 0 ? "warning" : "success"}>
               {fresh.length} proposition{fresh.length > 1 ? "s" : ""} en tête du mur, encadrée{fresh.length > 1 ? "s" : ""}.
@@ -294,7 +295,7 @@ export default async function StudioPage({
                         <p className="line-clamp-2 text-small text-ink">{payload?.tile ? payload.tile.copy.headline : payload?.instruction ? `Retouche : ${payload.instruction}` : payload?.brief || "Sans brief"}</p>
                         <Meta>
                           {format}
-                          {payload?.carousel ? ` · diapo ${payload.carousel.index}/${payload.carousel.total}` : payload?.feed_index != null ? ` · feed, tuile ${payload.feed_index + 1}` : ""}
+                          {payload?.card ? ` · ${payload.card.face === "front" ? "recto" : "verso"}, paire ${payload.card.pair}` : payload?.carousel ? ` · diapo ${payload.carousel.index}/${payload.carousel.total}` : payload?.feed_index != null ? ` · feed, tuile ${payload.feed_index + 1}` : ""}
                           {payload?.tile ? ` · ${TILE_KINDS[payload.tile.kind as keyof typeof TILE_KINDS]?.label ?? "tuile"} · ${BACKGROUND_LABEL[payload.tile.background as Background] ?? payload.tile.background}` : ""} · {DATE.format(new Date(out.created_at))}
                         </Meta>
                         {payload?.text_check && !payload.text_check.ok ? (

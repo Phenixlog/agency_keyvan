@@ -28,6 +28,8 @@ export type OutPayload = {
   text_check?: { ok: boolean; expected: string[]; found: string[]; issues: string[] } | null;
   feed_index?: number | null;
   carousel?: { index: number; total: number } | null;
+  /** One face of a business card: which one, and which pair of the lot it belongs to (1-based). */
+  card?: { face: "front" | "back"; pair: number } | null;
 };
 
 /** Subject given to the editing model when the reference is one of our own creations ("Mettre en situation"). */

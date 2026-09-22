@@ -229,6 +229,77 @@ export function tilePrompt(args: {
 }
 
 /* ------------------------------------------------------------------ */
+/* La carte de visite : recto (la marque) + verso (les coordonnées)     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A business card is two faces (Keyvan, with three references on the table): the front carries the
+ * brand, the back carries the person's details. Nothing here is written by a model: the details are
+ * facts typed by the user, drawn verbatim and read back like any tile text.
+ */
+export type CardInfo = { name: string; role: string; phone: string; email: string; website: string; address: string; social: string; tagline: string };
+export type CardFace = "front" | "back";
+export const CARD_FIELDS: { key: keyof CardInfo; label: string; placeholder: string; max: number }[] = [
+  { key: "name", label: "Nom", placeholder: "Julie De Nys", max: 60 },
+  { key: "role", label: "Fonction", placeholder: "Architecte d’intérieur", max: 80 },
+  { key: "phone", label: "Téléphone", placeholder: "+33 6 12 34 56 78", max: 30 },
+  { key: "email", label: "E-mail", placeholder: "contact@marque.fr", max: 80 },
+  { key: "website", label: "Site", placeholder: "marque.fr", max: 80 },
+  { key: "address", label: "Adresse", placeholder: "12 rue des Lices, Ajaccio", max: 100 },
+  { key: "social", label: "Réseau", placeholder: "@marque", max: 60 },
+  { key: "tagline", label: "Accroche du recto", placeholder: "Facultatif : une ligne sous le logo", max: 80 },
+];
+/** Three pairs, three faces of the graphic system: the back is always the readable one. */
+export const CARD_PAIRS: { front: Background; back: Background }[] = [
+  { front: "brand", back: "light" },
+  { front: "dark", back: "light" },
+  { front: "light", back: "brand" },
+];
+
+/** A card needs a name and at least one way to reach the person; quotes are stripped (they delimit texts in the prompt). */
+export function parseCardInfo(input: unknown): CardInfo | null {
+  if (!input || typeof input !== "object") return null;
+  const d = input as Record<string, unknown>;
+  const info = Object.fromEntries(CARD_FIELDS.map((f) => [f.key, clean(d[f.key], f.max)])) as CardInfo;
+  if (!info.name) return null;
+  if (![info.phone, info.email, info.website, info.address, info.social].some(Boolean)) return null;
+  return info;
+}
+
+/** The texts drawn on a face, in reading order: they are also what the check reads back. */
+export function cardLines(face: CardFace, info: CardInfo): string[] {
+  return face === "front" ? [info.tagline].filter(Boolean) : [info.name, info.role, info.phone, info.email, info.website, info.address, info.social].filter(Boolean);
+}
+
+export function cardPrompt(args: { face: CardFace; info: CardInfo; background: Background; graphic: BrandGraphic; os: BrandOS | null; hasLogo: boolean; brandName: string }): string {
+  const g = args.graphic;
+  const bg = g.backgrounds[args.background];
+  const textColour = args.background === "dark" ? "texts in light colour" : args.background === "light" ? "texts in dark colour" : "texts in the light colour of the palette";
+  const lines = cardLines(args.face, args.info);
+  const flat = "seen perfectly flat and straight on, filling the whole frame: no rounded corners, no shadow, no desk, no hand, no scene, no photograph";
+  const logo = args.hasLogo
+    ? args.face === "front"
+      ? "The reference image is the brand's real logo: it is THE element of this face, reproduced faithfully, large, well centred or set to the left with breathing space, never distorted or recoloured."
+      : "The reference image is the brand's real logo: reproduce it faithfully, small, in a corner or above the contact block, never distorted or recoloured."
+    : "No logo, no fake brand mark.";
+  return [
+    `Print-ready flat design of the ${args.face === "front" ? "FRONT" : "BACK"} of a business card, 3:2 (85 × 55 mm), for the brand ${args.brandName}, ${flat}.`,
+    `Background: ${bg} filling the whole card, ${textColour}.`,
+    args.face === "front"
+      ? `Composition: the logo alone${lines.length ? " with one short line under it" : ""}, the brand's signature shape (${g.shape}) as a discreet accent at most; a lot of empty space.`
+      : `Composition: a contact block set in the body font (${g.fonts.body || "a clean sans-serif"}), small but perfectly legible, left-aligned or in two aligned columns, the name in bold as the first line; thin simple line icons before the contact lines are allowed; a discreet accent from the brand's signature shape (${g.shape}) or a faint watermark of the logo's form is allowed; no QR code.`,
+    lines.length ? "TEXTS TO DRAW, EXACTLY these lines, French spelling and accents preserved, in this order, no other readable text anywhere:" : "No readable text on this face.",
+    ...lines.map((line, i) => `- "${line}"${i === 0 && args.face === "back" ? " (bold)" : ""}`),
+    logo,
+    `Palette to use and nothing else: ${(args.os?.visual.palette ?? []).join(", ") || bg}. Typography in the spirit of ${g.fonts.display || "a bold geometric sans-serif"} for the brand, ${g.fonts.body || "a clean sans-serif"} for details.`,
+    "This is a printed object: no user-interface elements, no buttons, no cursor, no placeholder text such as lorem ipsum.",
+    args.os?.visual.avoid.length ? `Avoid: ${args.os.visual.avoid.join(", ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/* ------------------------------------------------------------------ */
 /* Le contrôle du texte rendu                                          */
 /* ------------------------------------------------------------------ */
 

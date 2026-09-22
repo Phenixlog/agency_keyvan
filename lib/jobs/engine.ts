@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { acceptedChoices, getMediumBrief, guidanceWithAnswers } from "@/lib/expertise";
-import { checkTileText, surfaceOf, tilePrompt, type Background, type Surface, type TileKind, type TilePlan } from "@/lib/tiles";
+import { CARD_PAIRS, cardLines, cardPrompt, checkTileText, surfaceOf, tilePrompt, type Background, type CardFace, type CardInfo, type Surface, type TileKind, type TilePlan } from "@/lib/tiles";
 import { CREATION_AS_REFERENCE } from "@/lib/outs";
 import { fallbackGraphic } from "@/lib/brand-os/model";
 import { fetchTaskResult, hashForFilename, submitImageTask } from "@/lib/wavespeed";
@@ -51,6 +51,8 @@ type GenerationArgs = {
   feedIndex?: number | null;
   /** Slide of a carousel: its position (1-based) and the total. */
   carousel?: { index: number; total: number } | null;
+  /** One face of a business card: the person's details (typed, never written by a model), the face, the pair. */
+  card?: { face: CardFace; pair: number; info: CardInfo; background: Background } | null;
 };
 
 const BACKGROUND_ROTATION: Background[] = ["brand", "light", "dark"];
@@ -144,6 +146,30 @@ export async function batchFailures(jobIds: string[]): Promise<{ failed: number;
   return { failed: failed.length, reason: failed.length ? failureReason(failed.find((job) => failureReason(job.error) === "credits") ? "Insufficient credits" : failed[0]!.error) : null };
 }
 
+/**
+ * A business card: three pairs, each a front (the brand) and a back (the details), drawn in parallel in one
+ * lot. The front is stored under `business_card_front`, the back under `business_card_back`, so each face
+ * keeps its label and its file name.
+ */
+export async function queueBusinessCard(args: GenerationArgs, info: CardInfo, pairs = CARD_PAIRS.length) {
+  const batchId = crypto.randomUUID();
+  const faces: CardFace[] = ["front", "back"];
+  const results = await Promise.all(
+    Array.from({ length: pairs }, (_, i) =>
+      faces.map((face) =>
+        queueImageGeneration({
+          ...args,
+          batchId,
+          format: face === "front" ? "business_card_front" : "business_card_back",
+          mediumGuidance: " ", // the card prompt is complete by itself: no medium brief on top
+          card: { face, pair: i + 1, info, background: CARD_PAIRS[i % CARD_PAIRS.length]![face] },
+        })
+      )
+    ).flat()
+  );
+  return { batchId, jobIds: results.map((r) => r.jobId) };
+}
+
 export function queueSocialGeneration(args: GenerationArgs) {
   return queueImageGeneration({ ...args, format: "social_square" });
 }
@@ -157,7 +183,7 @@ export async function queueImageGeneration(
   // The logo is a reference image too, but the semantics stay "describe": the picture is drawn, the logo is placed on it.
   // It goes with every tile, and with the creations that ARE a brand piece even without text: a flat artwork
   // (label, chest print), a mock-up (a tee-shirt from a brief), a custom support. A plain photo post stays a photo.
-  const withLogo = Boolean(args.logoUrl && !args.referenceUrl && (args.tile || format.nature === "artwork" || format.nature === "mockup" || format.key === "custom"));
+  const withLogo = Boolean(args.logoUrl && !args.referenceUrl && (args.tile || args.card || format.nature === "artwork" || format.nature === "mockup" || format.key === "custom"));
   const mode: ImageMode = args.referenceUrl ? (args.mode === "retouch" ? "retouch" : "restage") : "describe";
 
   // Fetch latest OS + Mega
@@ -180,7 +206,9 @@ export async function queueImageGeneration(
   const canon = isBrandOS(os?.canon) ? os.canon : null;
   // A tile with text is assembled by code so the words reach the image model untouched;
   // a picture without text is described by an LLM from Brand OS + learned rules + brief.
-  const composedPrompt = args.tile && mode === "describe"
+  const composedPrompt = args.card && mode === "describe"
+    ? cardPrompt({ face: args.card.face, info: args.card.info, background: args.card.background, graphic: canon?.graphic ?? fallbackGraphic(canon), os: canon, hasLogo: withLogo, brandName: canon?.name ?? "the brand" })
+    : args.tile && mode === "describe"
     ? tilePrompt({
         plan: args.tile.plan,
         kind: args.tile.kind,
@@ -279,7 +307,12 @@ export async function queueImageGeneration(
     }
 
     // A tile with text: read the image back and compare with the words asked for (typos happen).
-    const textCheck = args.tile ? await checkTileText(imageUrl, args.tile.plan) : null;
+    const cardTexts = args.card ? cardLines(args.card.face, args.card.info) : [];
+    const textCheck = args.tile
+      ? await checkTileText(imageUrl, args.tile.plan)
+      : cardTexts.length
+        ? await checkTileText(imageUrl, { headline: cardTexts[0]!, subline: "", caption: "", cta: "", items: cardTexts.slice(1) })
+        : null;
 
     // Insert out (draft)
     const payload = {
@@ -305,6 +338,7 @@ export async function queueImageGeneration(
       text_check: textCheck,
       feed_index: args.feedIndex ?? null,
       carousel: args.carousel ?? null,
+      card: args.card ? { face: args.card.face, pair: args.card.pair } : null,
     };
     const { data: out, error: outErr } = await supabase
       .from("outs")

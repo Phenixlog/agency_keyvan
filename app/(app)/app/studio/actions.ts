@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { archiveAsset, getAsset, registerAsset } from "@/lib/assets";
 import { OFFERED_FORMATS, resolveFormat, type CustomFormat, type ImageFormat } from "@/lib/brand-os";
-import { batchFailures, queueImageGeneration, queueProposals, queueSeries } from "@/lib/jobs/engine";
-import { CAROUSEL_MAX, LOGO_PLACEMENTS, carouselSlideKind, isTileKind, parseCarouselPlan, parseFeedPlan, parseTilePlan, type LogoPlacement } from "@/lib/tiles";
+import { batchFailures, queueBusinessCard, queueImageGeneration, queueProposals, queueSeries } from "@/lib/jobs/engine";
+import { CAROUSEL_MAX, LOGO_PLACEMENTS, carouselSlideKind, isTileKind, parseCarouselPlan, parseFeedPlan, parseTilePlan, type LogoPlacement, CARD_FIELDS, parseCardInfo } from "@/lib/tiles";
 import { CREATION_AS_REFERENCE, outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
@@ -83,6 +83,13 @@ export async function createProposals(formData: FormData) {
   }
 
   // A tile with text cannot also restage a reference photo: the words win, the reference is dropped.
+  // A business card is its own object: two faces per pair, the details typed here, never a brief-only picture.
+  if (requestedFormat(formData).format === "business_card_front") {
+    const info = parseCardInfo(Object.fromEntries(CARD_FIELDS.map((f) => [f.key, formData.get(`card_${f.key}`)])));
+    if (!info) redirect("/app/studio?erreur=carte");
+    const { batchId, jobIds } = await queueBusinessCard({ orgId: brand.org_id, brandId: brand.id, userId, brief, logoUrl: await brandLogo(brand.id) }, info);
+    redirect(`/app/studio?lot=${batchId}${await failureParam(jobIds)}`);
+  }
   const tile = tileFrom(formData);
   const reference = tile ? null : (asset?.url ?? refCreation);
   const { batchId, jobIds } = await queueProposals({
