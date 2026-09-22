@@ -130,6 +130,9 @@ export function SeriesComposer({ hasLogo }: { hasLogo: boolean }) {
                 </span>
                 <input value={tile.headline} onChange={(e) => update(i, { headline: e.target.value })} maxLength={60} aria-label={`Titre ${i + 1}`} className="w-full bg-transparent text-title font-semibold outline-none placeholder:opacity-60" placeholder="Titre" />
                 <input value={tile.subline} onChange={(e) => update(i, { subline: e.target.value })} maxLength={120} aria-label={`Sous-titre ${i + 1}`} className="w-full bg-transparent text-small outline-none placeholder:opacity-60" placeholder="Sous-titre (facultatif)" />
+                {tile.kind === "list" || tile.kind === "menu" ? (
+                  <textarea value={(tile.items ?? []).join("\n")} onChange={(e) => update(i, { items: e.target.value.split("\n").slice(0, 5) })} rows={3} aria-label={`Items ${i + 1}`} className="w-full resize-none bg-transparent font-mono text-meta outline-none placeholder:opacity-60" placeholder="Un item par ligne" />
+                ) : null}
                 {tile.cta ? <span className="justify-self-start rounded-pill bg-card/20 px-2 py-0.5 font-mono text-meta">{tile.cta}</span> : null}
               </li>
             ))}

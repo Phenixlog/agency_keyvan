@@ -260,7 +260,7 @@ export async function queueImageGeneration(
       prompt: composedPrompt,
       job_id: jobId,
       // Tile with text: the words drawn, the background used, and whether the model spelled them right.
-      tile: args.tile ? { kind: args.tile.kind, background: args.tile.background, copy: { headline: args.tile.plan.headline, subline: args.tile.plan.subline, caption: args.tile.plan.caption, cta: args.tile.plan.cta }, logo: withLogo } : null,
+      tile: args.tile ? { kind: args.tile.kind, background: args.tile.background, copy: { headline: args.tile.plan.headline, subline: args.tile.plan.subline, caption: args.tile.plan.caption, cta: args.tile.plan.cta, items: args.tile.plan.items ?? [] }, logo: withLogo } : null,
       text_check: textCheck,
       feed_index: args.feedIndex ?? null,
       carousel: args.carousel ?? null,

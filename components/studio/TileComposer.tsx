@@ -130,6 +130,12 @@ export function TileComposer({ kinds, format, customUse, hasLogo }: { kinds: Rec
               <span className="font-mono text-meta text-mute">Bouton</span>
               <input name="tile_cta" maxLength={40} value={plan?.cta ?? ""} onChange={(e) => setPlan((p) => ({ ...(p ?? EMPTY), cta: e.target.value }))} className={FIELD} placeholder="Commander, Réserver…" />
             </label>
+            {kind === "list" || kind === "menu" ? (
+              <label className="grid gap-1 md:col-span-2">
+                <span className="font-mono text-meta text-mute">Les items · un par ligne, 3 à 5 {kind === "menu" ? "· « Nom — prix »" : ""}</span>
+                <textarea name="tile_items" rows={4} value={(plan?.items ?? []).join("\n")} onChange={(e) => setPlan((p) => ({ ...(p ?? EMPTY), items: e.target.value.split("\n") }))} className={FIELD} placeholder={kind === "menu" ? "Pain au levain — 4,20 €" : "Le levain, nourri chaque jour"} />
+              </label>
+            ) : null}
             <label className="grid gap-1 md:col-span-2">
               <span className="font-mono text-meta text-mute">La photo sur la tuile (en anglais, pour le modèle) · vide = tuile typographique</span>
               <input name="tile_scene" maxLength={400} value={plan?.scene ?? ""} onChange={(e) => setPlan((p) => ({ ...(p ?? EMPTY), scene: e.target.value }))} className={FIELD} placeholder="a cut-out sourdough loaf…" />
@@ -146,4 +152,4 @@ export function TileComposer({ kinds, format, customUse, hasLogo }: { kinds: Rec
   );
 }
 
-const EMPTY: TilePlan = { headline: "", subline: "", caption: "", cta: "", scene: "", logoPlacement: "top-left" };
+const EMPTY: TilePlan = { headline: "", subline: "", caption: "", cta: "", items: [], scene: "", logoPlacement: "top-left" };

@@ -372,7 +372,7 @@ export default async function StudioPage({
                             <div>
                               <dt><Meta>Texte demandé</Meta></dt>
                               <dd className="text-small text-ink">
-                                {[payload.tile.copy.headline, payload.tile.copy.subline, payload.tile.copy.caption, payload.tile.copy.cta].filter(Boolean).map((t) => `« ${t} »`).join(" · ")}
+                                {[payload.tile.copy.headline, payload.tile.copy.subline, payload.tile.copy.caption, payload.tile.copy.cta, ...(payload.tile.copy.items ?? [])].filter(Boolean).map((t) => `« ${t} »`).join(" · ")}
                                 {payload.text_check ? (payload.text_check.ok ? " — relu sur l’image : conforme." : " — relu sur l’image : écart signalé.") : " — relecture indisponible."}
                                 {payload.tile.logo ? " Logo de la marque posé en référence." : ""}
                               </dd>

@@ -47,6 +47,7 @@ function tileFrom(formData: FormData) {
     subline: formData.get("tile_subline"),
     caption: formData.get("tile_caption"),
     cta: formData.get("tile_cta"),
+    items: String(formData.get("tile_items") || "").split("\n"),
     scene: formData.get("tile_scene"),
     logoPlacement: (LOGO_PLACEMENTS as readonly string[]).includes(placement) ? (placement as LogoPlacement) : "top-left",
   });

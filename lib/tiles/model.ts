@@ -36,7 +36,14 @@ export type TileCopy = {
   subline: string;
   caption: string;
   cta: string;
+  /** The items of a list or menu tile (3 to 5), drawn as numbered pills or lines. Empty otherwise. */
+  items?: string[];
 };
+
+export const MAX_ITEMS = 5;
+export const MAX_ITEM = 60;
+/** Kinds whose layout calls for items: without explicit ones the image model invents them. */
+export const KINDS_WITH_ITEMS: readonly TileKind[] = ["list", "menu"];
 
 /** Ce que le modèle de langue ajoute au texte : la scène photo et la place du logo. */
 export type TilePlan = TileCopy & {
@@ -52,8 +59,9 @@ export const MAX_CAPTION = 160;
 export const TILE_COPY_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["headline", "subline", "caption", "cta", "scene", "logoPlacement"],
+  required: ["headline", "subline", "caption", "cta", "items", "scene", "logoPlacement"],
   properties: {
+    items: { type: "array", items: { type: "string" }, description: `Pour une tuile « liste » ou « menu » seulement : 3 à ${MAX_ITEMS} items courts (${MAX_ITEM} caractères max chacun ; pour un menu « Nom — prix » si le prix est connu). Tableau vide pour les autres types.` },
     headline: { type: "string", description: `Le titre, 2 à 7 mots, dans la voix de la marque, ${MAX_HEADLINE} caractères max. Il sera dessiné en gros : court, sans ponctuation finale.` },
     subline: { type: "string", description: `Une ligne sous le titre (précision, condition, seconde partie), ${MAX_LINE} caractères max. Vide si inutile.` },
     caption: { type: "string", description: `Une petite ligne d'information (horaire, lieu, détail), ${MAX_CAPTION} caractères max. Vide si inutile.` },
@@ -101,11 +109,13 @@ export function parseTilePlan(input: unknown): TilePlan | null {
   const headline = clean(d.headline, MAX_HEADLINE);
   if (!headline) return null;
   const placement = String(d.logoPlacement ?? "");
+  const items = (Array.isArray(d.items) ? d.items : []).map((i) => clean(i, MAX_ITEM)).filter(Boolean).slice(0, MAX_ITEMS);
   return {
     headline,
     subline: clean(d.subline, MAX_LINE),
     caption: clean(d.caption, MAX_CAPTION),
     cta: clean(d.cta, 40),
+    items,
     scene: clean(d.scene, 400),
     logoPlacement: (LOGO_PLACEMENTS as readonly string[]).includes(placement) ? (placement as LogoPlacement) : "top-left",
   };
@@ -113,7 +123,7 @@ export function parseTilePlan(input: unknown): TilePlan | null {
 
 /** Sans modèle : le brief devient le titre, rien d'autre. */
 export function fallbackTilePlan(brief: string): TilePlan {
-  return { headline: clean(brief, MAX_HEADLINE) || "Nouveauté", subline: "", caption: "", cta: "", scene: "", logoPlacement: "top-left" };
+  return { headline: clean(brief, MAX_HEADLINE) || "Nouveauté", subline: "", caption: "", cta: "", items: [], scene: "", logoPlacement: "top-left" };
 }
 
 /* ------------------------------------------------------------------ */
@@ -156,11 +166,12 @@ export function tilePrompt(args: {
     args.plan.subline ? `Subline, smaller, under the headline: "${args.plan.subline}"` : "",
     args.plan.caption ? `Small caption line: "${args.plan.caption}"` : "",
     args.plan.cta ? `A button-like pill with the text: "${args.plan.cta}"` : "",
+    ...(args.plan.items?.length ? [`Exactly ${args.plan.items.length} items, numbered, in this order and no other: ${args.plan.items.map((item, i) => `${i + 1}. "${item}"`).join(" ")}`] : []),
   ].filter(Boolean);
   return [
     `Social media post design, ${args.aspectRatio} frame, for the brand ${args.brandName}. Flat graphic layout like a modern brand feed, generous margins, nothing outside the frame.`,
     `Background: ${bg} filling the whole frame${args.background === "dark" ? ", texts in light colour" : args.background === "light" ? ", texts in dark colour" : ", texts in the light colour of the palette"}.`,
-    `Layout: ${TILE_KINDS[args.kind].layout}.`,
+    `Layout: ${TILE_KINDS[args.kind].layout}${KINDS_WITH_ITEMS.includes(args.kind) && !args.plan.items?.length ? " (no item list: headline and subline only)" : ""}.`,
     args.plan.scene ? `Photo layer: ${args.plan.scene}, photorealistic, lit consistently with the brand's visual style${args.os ? ` (${args.os.visual.style})` : ""}.` : "No photo: a pure typographic composition.",
     `Typography: ${fonts}. Title treatment: ${g.titles}.`,
     `Brand graphic system: signature shape — ${g.shape}; stickers and accents — ${g.stickers}. Use them with restraint, one or two accents at most.`,
@@ -201,7 +212,7 @@ const normalise = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLo
 
 /** Every expected text must appear, in order-insensitive substring terms, in what was read back. */
 export function compareTexts(plan: TileCopy, found: string[]): TextCheck {
-  const expected = [plan.headline, plan.subline, plan.caption, plan.cta].filter(Boolean);
+  const expected = [plan.headline, plan.subline, plan.caption, plan.cta, ...(plan.items ?? [])].filter(Boolean);
   const haystack = normalise(found.join(" "));
   const issues = expected.filter((text) => !haystack.includes(normalise(text)));
   return { ok: issues.length === 0, expected, found, issues };
@@ -219,6 +230,7 @@ export const CAROUSEL_MAX = 6;
 export type PlannedTile = TilePlan & { kind: TileKind; background: Background };
 
 const TILE_PROPERTIES = {
+  items: TILE_COPY_SCHEMA.properties.items,
   headline: TILE_COPY_SCHEMA.properties.headline,
   subline: TILE_COPY_SCHEMA.properties.subline,
   caption: TILE_COPY_SCHEMA.properties.caption,
@@ -341,5 +353,6 @@ export function parseCarouselPlan(input: unknown, wanted: number): TilePlan[] {
 export function carouselSlideKind(index: number, total: number): TileKind {
   if (index === 0) return "hook_photo";
   if (index === total - 1) return "cta";
-  return "list";
+  // One idea per slide: the hook layout (headline + photo). A list layout would make the model invent items.
+  return "hook_photo";
 }
