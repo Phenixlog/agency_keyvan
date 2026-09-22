@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { resolveFormat, type ImageFormat, OFFERED_FORMATS } from "@/lib/brand-os";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isTileKind, planTile } from "@/lib/tiles";
+import { isTileKind, planTile, surfaceOf } from "@/lib/tiles";
 import { getWorkspace } from "@/lib/workspace";
 
 /**
@@ -25,6 +25,6 @@ export async function POST(req: NextRequest) {
   if (!brand) return NextResponse.json({ error: "Aucune marque active" }, { status: 409 });
 
   const spec = resolveFormat(format, format === "custom" ? { aspectRatio: "1:1", use: String(body?.customUse ?? "") } : null);
-  const result = await planTile({ os: os?.canon ?? null, summary: os?.summary ?? "", kind, brief, formatLabel: spec.label });
+  const result = await planTile({ os: os?.canon ?? null, summary: os?.summary ?? "", kind, brief, formatLabel: spec.label, surface: surfaceOf(spec) });
   return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
 }

@@ -20,6 +20,7 @@ import {
   parseTilePlan,
   tileCopyUserMessage,
   type PlannedTile,
+  type Surface,
   type TextCheck,
   type TileCopy,
   type TileKind,
@@ -29,7 +30,7 @@ import {
 export * from "@/lib/tiles/model";
 
 /** The tile's words, in the brand's voice — shown to the user before any image is paid for. */
-export async function planTile(args: { os: BrandOS | null; summary: string; kind: TileKind; brief: string; formatLabel: string }): Promise<{ plan: TilePlan; source: "llm" | "fallback" }> {
+export async function planTile(args: { os: BrandOS | null; summary: string; kind: TileKind; brief: string; formatLabel: string; surface?: Surface }): Promise<{ plan: TilePlan; source: "llm" | "fallback" }> {
   if (!isLlmConfigured()) return { plan: fallbackTilePlan(args.brief), source: "fallback" };
   try {
     const raw = await chatJson<unknown>({

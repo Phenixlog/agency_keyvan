@@ -36,12 +36,14 @@ const TAB = "whitespace-nowrap rounded-pill px-4 py-2 text-small text-mute trans
 export default async function StudioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string; focus?: string; lot?: string; brief?: string; ref?: string }>;
+  searchParams: Promise<{ vue?: string; focus?: string; lot?: string; brief?: string; ref?: string; echec?: string }>;
 }) {
   const { brand, os, mega } = await getWorkspace();
   if (!brand) redirect("/app/clients");
   if (!isValidated(brand)) return <ValidationGate brandName={brand.name} feature="Le Studio" />;
-  const { vue, focus, lot, brief: suggestedBrief, ref } = await searchParams;
+  const { vue, focus, lot, brief: suggestedBrief, ref, echec } = await searchParams;
+  // Why the lot came back short: said plainly, because a thinner wall says nothing (seen live: an empty image account).
+  const failureLine = echec === "credits" ? " Cause : le compte du service d’images n’a plus de crédit. Rechargez-le, puis « Recréer »." : echec === "service" ? " Cause : le service d’images a refusé ou n’a pas répondu à temps. Réessayez dans un instant." : "";
   const library = vue === "phototheque";
   const feedView = vue === "feed";
   const view: View = vue && vue in VIEWS ? (vue as View) : "actives";
@@ -253,10 +255,10 @@ export default async function StudioPage({
           {lot && fresh.length ? (
             <Notice tone={failed > 0 ? "warning" : "success"}>
               {fresh.length} proposition{fresh.length > 1 ? "s" : ""} en tête du mur, encadrée{fresh.length > 1 ? "s" : ""}.
-              {failed > 0 ? ` ${failed} n’${failed > 1 ? "ont" : "a"} pas abouti.` : ""} Gardez celles qui vous plaisent, retouchez, ou archivez.
+              {failed > 0 ? ` ${failed} n’${failed > 1 ? "ont" : "a"} pas abouti.${failureLine}` : ""} Gardez celles qui vous plaisent, retouchez, ou archivez.
             </Notice>
           ) : lot ? (
-            <Notice tone="danger">Aucune proposition n’a abouti. Réessayez ; si cela persiste, le service d’images est peut-être indisponible.</Notice>
+            <Notice tone="danger">Aucune proposition n’a abouti.{failureLine || " Réessayez ; si cela persiste, le service d’images est peut-être indisponible."}</Notice>
           ) : null}
 
           {/* ---- Le mur ---- */}

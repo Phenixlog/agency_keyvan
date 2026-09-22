@@ -91,6 +91,8 @@ export async function composeImagePrompt(args: {
   mode?: ImageMode;
   subject?: string | null;
   instruction?: string | null;
+  /** The brand's real logo travels as a reference image: the prompt must say so, and never invent one. */
+  logo?: boolean;
 }): Promise<string> {
   const mode = args.mode ?? "describe";
   return withFallback(

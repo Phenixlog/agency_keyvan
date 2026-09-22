@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { acceptedChoices, getMediumBrief, guidanceWithAnswers } from "@/lib/expertise";
-import { checkTileText, tilePrompt, type Background, type TileKind, type TilePlan } from "@/lib/tiles";
+import { checkTileText, surfaceOf, tilePrompt, type Background, type Surface, type TileKind, type TilePlan } from "@/lib/tiles";
+import { CREATION_AS_REFERENCE } from "@/lib/outs";
 import { fallbackGraphic } from "@/lib/brand-os/model";
 import { fetchTaskResult, hashForFilename, submitImageTask } from "@/lib/wavespeed";
 import {
@@ -107,6 +108,42 @@ export async function queueSeries(args: GenerationArgs & { format: ImageFormat }
   return { batchId, jobIds: results.map((r) => r.jobId) };
 }
 
+/**
+ * Said by code, after the LLM-written prompt: the prompt writer keeps ending with "no logos" even when
+ * told a logo reference is attached (seen live on a label: the reference was sent and ignored). The last
+ * line wins with the image model, so it is ours.
+ */
+export const BRAND_MARK_LINE = "The attached reference image is the brand's REAL logo: reproduce it faithfully as the brand mark, integrated in the design at a sensible size, never redrawn, recoloured or distorted. Apart from the logo, no readable text.";
+function withBrandMark(withLogo: boolean, prompt: string): string {
+  if (!withLogo) return prompt;
+  // Any "no logo" the writer left contradicts the reference: soften it before adding ours.
+  return `${prompt.replace(/\b(no|without|devoid of|free of)\b([^.]*?)\blogos?\b/gi, "$1$2 fake logo")}\n${BRAND_MARK_LINE}`;
+}
+
+/**
+ * A creation (a tile with a button) restaged on a printed object: the editing model copies the button
+ * and its mouse pointer onto the canvas (seen live on a tote bag). Said by code, after the LLM's instruction.
+ */
+export const PHYSICAL_RESTAGE_LINE = "The reproduced design keeps its texts, logo and illustration, but drops every screen-only element: no web button shape, no mouse pointer, no click icon — they cannot exist on a printed object. The call to action, if any, stays as plain bold text.";
+function withPhysicalRules(mode: ImageMode, subject: string | null | undefined, surface: Surface, prompt: string): string {
+  return mode === "restage" && subject === CREATION_AS_REFERENCE && surface !== "screen" ? `${prompt}\n${PHYSICAL_RESTAGE_LINE}` : prompt;
+}
+
+/** Why a lot came back short, in a word the screen can say: the image account is empty, or the service failed. */
+export type FailureReason = "credits" | "service";
+export function failureReason(error: string | null | undefined): FailureReason {
+  return /insufficient credits|top up/i.test(error ?? "") ? "credits" : "service";
+}
+
+/** The failed jobs of a lot, read right after the synchronous generation, so the redirect can carry the reason. */
+export async function batchFailures(jobIds: string[]): Promise<{ failed: number; reason: FailureReason | null }> {
+  if (!jobIds.length) return { failed: 0, reason: null };
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.from("jobs").select("status,error").in("id", jobIds);
+  const failed = (data ?? []).filter((job) => job.status === "failed");
+  return { failed: failed.length, reason: failed.length ? failureReason(failed.find((job) => failureReason(job.error) === "credits") ? "Insufficient credits" : failed[0]!.error) : null };
+}
+
 export function queueSocialGeneration(args: GenerationArgs) {
   return queueImageGeneration({ ...args, format: "social_square" });
 }
@@ -118,7 +155,9 @@ export async function queueImageGeneration(
   const format = resolveFormat(args.format, args.custom);
   const mediumGuidance = await resolveMediumGuidance(args);
   // The logo is a reference image too, but the semantics stay "describe": the picture is drawn, the logo is placed on it.
-  const withLogo = Boolean(args.tile && args.logoUrl && !args.referenceUrl);
+  // It goes with every tile, and with the creations that ARE a brand piece even without text: a flat artwork
+  // (label, chest print), a mock-up (a tee-shirt from a brief), a custom support. A plain photo post stays a photo.
+  const withLogo = Boolean(args.logoUrl && !args.referenceUrl && (args.tile || format.nature === "artwork" || format.nature === "mockup" || format.key === "custom"));
   const mode: ImageMode = args.referenceUrl ? (args.mode === "retouch" ? "retouch" : "restage") : "describe";
 
   // Fetch latest OS + Mega
@@ -153,8 +192,9 @@ export async function queueImageGeneration(
         brandName: canon?.name ?? "the brand",
         direction: mediumGuidance,
         slide: args.carousel ?? null,
+        medium: { label: format.label, surface: surfaceOf(format) },
       })
-    : await composeImagePrompt({
+    : withPhysicalRules(mode, args.subject, surfaceOf(format), withBrandMark(withLogo, await composeImagePrompt({
     os: isBrandOS(os?.canon) ? os.canon : null,
     summary: os?.summary || "",
     mega: normalizeMega(mega?.content),
@@ -164,7 +204,8 @@ export async function queueImageGeneration(
     mode,
     subject: args.subject,
     instruction: args.instruction,
-  });
+    logo: withLogo,
+  })));
 
   // Insert job as queued
   const { data: job, error: jobErr } = await supabase
@@ -291,6 +332,8 @@ export async function queueImageGeneration(
   } catch (e: unknown) {
     const message =
       e instanceof Error ? e.message : typeof e === "string" ? e : "Erreur inconnue";
+    // Seen live: a whole lot lost to "Insufficient credits" with nothing in the logs and a wall that just looked thinner.
+    console.error(`[jobs] génération échouée (${args.format}, ${mode}${withLogo ? ", logo" : ""}) : ${message}`);
     await supabase
       .from("jobs")
       .update({

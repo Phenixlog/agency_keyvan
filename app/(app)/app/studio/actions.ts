@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { archiveAsset, getAsset, registerAsset } from "@/lib/assets";
 import { OFFERED_FORMATS, resolveFormat, type CustomFormat, type ImageFormat } from "@/lib/brand-os";
-import { queueImageGeneration, queueProposals, queueSeries } from "@/lib/jobs/engine";
+import { batchFailures, queueImageGeneration, queueProposals, queueSeries } from "@/lib/jobs/engine";
 import { CAROUSEL_MAX, LOGO_PLACEMENTS, carouselSlideKind, isTileKind, parseCarouselPlan, parseFeedPlan, parseTilePlan, type LogoPlacement } from "@/lib/tiles";
 import { CREATION_AS_REFERENCE, outImageUrl, setOutStatus, type OutPayload, type OutStatus } from "@/lib/outs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -85,7 +85,7 @@ export async function createProposals(formData: FormData) {
   // A tile with text cannot also restage a reference photo: the words win, the reference is dropped.
   const tile = tileFrom(formData);
   const reference = tile ? null : (asset?.url ?? refCreation);
-  const { batchId } = await queueProposals({
+  const { batchId, jobIds } = await queueProposals({
     orgId: brand.org_id,
     brandId: brand.id,
     userId,
@@ -97,15 +97,22 @@ export async function createProposals(formData: FormData) {
     mode: reference ? "restage" : "describe",
     parentOutId: !tile && refCreation ? refOutId : null,
     tile,
-    logoUrl: tile ? await brandLogo(brand.id) : null,
+    // The engine decides when the logo travels as a reference (tiles, artworks, mock-ups, custom supports).
+    logoUrl: await brandLogo(brand.id),
   });
-  redirect(`/app/studio?lot=${batchId}`);
+  redirect(`/app/studio?lot=${batchId}${await failureParam(jobIds)}`);
 }
 
 /**
  * A feed of nine or a carousel, from a plan the user reviewed. The plan comes back from the browser
  * as JSON and is parsed exactly as the model's output would be: nothing unchecked reaches the engine.
  */
+/** "&echec=credits" or "&echec=service" when part of the lot failed, so the Studio can say why. */
+async function failureParam(jobIds: string[]): Promise<string> {
+  const { failed, reason } = await batchFailures(jobIds);
+  return failed && reason ? `&echec=${reason}` : "";
+}
+
 export async function createSeries(formData: FormData) {
   const { brand, userId } = await activeBrand();
   const series = String(formData.get("series") || "") === "carousel" ? "carousel" : "feed";
@@ -121,8 +128,8 @@ export async function createSeries(formData: FormData) {
       ? parseFeedPlan({ tiles: raw }).map((t) => ({ kind: t.kind, background: t.background, plan: t }))
       : parseCarouselPlan({ slides: raw }, Array.isArray(raw) ? Math.min(raw.length, CAROUSEL_MAX) : 5).map((plan, i, all) => ({ kind: carouselSlideKind(i, all.length), background: "brand" as const, plan }));
   if (!tiles.length) redirect("/app/studio");
-  const { batchId } = await queueSeries({ orgId: brand.org_id, brandId: brand.id, userId, brief: null, format, logoUrl: await brandLogo(brand.id) }, tiles, series);
-  redirect(`/app/studio?lot=${batchId}${series === "feed" ? "&vue=feed" : ""}`);
+  const { batchId, jobIds } = await queueSeries({ orgId: brand.org_id, brandId: brand.id, userId, brief: null, format, logoUrl: await brandLogo(brand.id) }, tiles, series);
+  redirect(`/app/studio?lot=${batchId}${series === "feed" ? "&vue=feed" : ""}${await failureParam(jobIds)}`);
 }
 
 /** One change on one creation. The brand is untouched: that is what the expert is for. */
@@ -142,7 +149,7 @@ export async function retouch(formData: FormData) {
   const format: ImageFormat = payload?.format === "custom" ? "custom" : resolveFormat(payload?.format).key;
   const custom = format === "custom" ? { aspectRatio: payload?.aspect_ratio ?? "", use: (payload?.format_label ?? "").split(" · ")[0] } : null;
   const batchId = crypto.randomUUID();
-  await queueImageGeneration({
+  const { jobId } = await queueImageGeneration({
     orgId: brand.org_id,
     brandId: brand.id,
     userId,
@@ -155,7 +162,7 @@ export async function retouch(formData: FormData) {
     parentOutId: out.id as string,
     batchId,
   });
-  redirect(`/app/studio?lot=${batchId}`);
+  redirect(`/app/studio?lot=${batchId}${await failureParam([jobId])}`);
 }
 
 export async function setStatus(formData: FormData) {
