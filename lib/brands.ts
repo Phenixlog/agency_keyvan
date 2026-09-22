@@ -115,11 +115,15 @@ export async function rebuildBrandOS(args: { brandId: string; orgId: string; use
   const seed = ((brand?.data as { seed?: string } | null)?.seed ?? "").trim();
   const url = extractUrl(seed);
   let corpus = "";
+  let siteColors: string[] = ((brand?.data as { site?: { colors?: string[] } } | null)?.site?.colors ?? []).filter((c) => /^#[0-9A-F]{6}$/.test(c));
   if (url) {
     const site = await scrapeSite(url);
     corpus = site.text;
-    // A re-analysis also refreshes the logo and the share image shown on the brand board.
-    if (corpus) await saveBrandSource(args.brandId, { url, assets: site.assets, readChars: corpus.length });
+    // A re-analysis also refreshes the logo, the share image and the colours read in the site's CSS.
+    if (corpus) {
+      await saveBrandSource(args.brandId, { url, assets: site.assets, readChars: corpus.length });
+      siteColors = site.assets.colors ?? siteColors;
+    }
   }
   const source = [
     seed,
@@ -130,7 +134,11 @@ export async function rebuildBrandOS(args: { brandId: string; orgId: string; use
     .filter(Boolean)
     .join("\n\n");
 
-  const result = await buildBrandOS({ source, nameHint: brand?.name ?? null });
+  const result = await buildBrandOS({
+    source,
+    nameHint: brand?.name ?? null,
+    declared: siteColors.length ? `Couleurs réellement utilisées par le site (lues dans son CSS, par fréquence) : ${siteColors.join(", ")}. La palette DOIT reprendre ces codes tels quels (nomme-les), sans en inventer d'autres.` : null,
+  });
   // Never replace the current Brand OS with a deterministic draft: a rebuild is only worth a real analysis.
   if (result.source === "fallback") return "fallback" as const;
   // An identity created and chosen with Brand OS (door B) is a decision, not an analysis: a re-analysis keeps it.

@@ -3,7 +3,7 @@ import { isMissingColumn } from "@/lib/db-errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { brandColorFromPalette } from "@/lib/tokens";
 import { BlockedUrlError, assertPublicUrl, safeFetchText } from "@/lib/safe-fetch";
-import { extractSiteAssets, type SiteAssets } from "@/lib/site-assets";
+import { extractSiteAssets, extractSiteColors, type SiteAssets } from "@/lib/site-assets";
 import { buildBrandOS, isBrandOS, renderSummary, type BrandOS, type MegaPrompt } from "@/lib/brand-os";
 
 /** oui = identité utilisable (porte A) · logo = un logo seul (A légère) · non = à créer (porte B). */
@@ -210,7 +210,7 @@ export function extractUrl(seed?: string | null) {
   return m ? m[0] : null;
 }
 
-const NO_ASSETS: SiteAssets = { logo: null, image: null, siteName: null };
+const NO_ASSETS: SiteAssets = { logo: null, image: null, siteName: null, colors: [] };
 
 /** Only keep asset addresses that are public http(s) URLs: they end up in an <img src> shown to users. */
 function publicOrNull(url: string | null): string | null {
@@ -236,7 +236,7 @@ export async function scrapeSite(url: string): Promise<{ text: string; assets: S
       .trim();
     return {
       text: text.slice(0, 20000),
-      assets: { logo: publicOrNull(found.logo), image: publicOrNull(found.image), siteName: found.siteName },
+      assets: { logo: publicOrNull(found.logo), image: publicOrNull(found.image), siteName: found.siteName, colors: extractSiteColors(html) },
     };
   } catch (e) {
     if (e instanceof BlockedUrlError) {
@@ -248,6 +248,14 @@ export async function scrapeSite(url: string): Promise<{ text: string; assets: S
 
 export async function scrapeUrl(url: string): Promise<string> {
   return (await scrapeSite(url)).text;
+}
+
+/** The colours read in the site's CSS when it was scraped, if any. */
+export async function siteColorsOf(brandId: string): Promise<string[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.from("brands").select("data").eq("id", brandId).maybeSingle();
+  const colors = ((data?.data as { site?: { colors?: unknown } } | null)?.site?.colors ?? []) as unknown;
+  return Array.isArray(colors) ? colors.filter((c): c is string => typeof c === "string" && /^#[0-9A-F]{6}$/.test(c)) : [];
 }
 
 /** Merges into brands.data (seed, url…): never replaces it. */

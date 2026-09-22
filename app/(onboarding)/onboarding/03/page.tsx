@@ -4,7 +4,7 @@ import { Step } from "@/components/onboarding/Step";
 import { Meta, Notice } from "@/components/ui";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { isLlmConfigured } from "@/lib/llm/openrouter";
-import { ensureDraftOSAndMega, requireOnboardingBrand } from "@/lib/onboarding";
+import { ensureDraftOSAndMega, requireOnboardingBrand, siteColorsOf } from "@/lib/onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +29,10 @@ export default async function OB03() {
     const { user, session, orgId, brandId } = await requireOnboardingBrand();
     const source = [session.seed, session.data.scrape?.corpus].filter(Boolean).join("\n\n");
     const door = session.data.door ?? "oui";
+    const siteColors = await siteColorsOf(brandId);
     const declared = [
       session.data.internal_name ? `Nom du client : ${session.data.internal_name}` : "",
+      siteColors.length ? `Couleurs réellement utilisées par le site (lues dans son CSS, par fréquence) : ${siteColors.join(", ")}. La palette DOIT reprendre ces codes tels quels (nomme-les), sans en inventer d'autres.` : "",
       session.data.display_name ? `Nom commercial : ${session.data.display_name}` : "",
       `Identité visuelle : ${DOOR_LINE[door]}`,
       session.data.logo ? "Un logo a été déposé." : "",

@@ -5,7 +5,7 @@
  * par l'appelant (assertPublicUrl) avant d'être stockées.
  */
 
-export type SiteAssets = { logo: string | null; image: string | null; siteName: string | null };
+export type SiteAssets = { logo: string | null; image: string | null; siteName: string | null; colors?: string[] };
 
 const MAX_HEAD_CHARS = 200_000;
 const MAX_NAME = 80;
@@ -82,4 +82,29 @@ export function extractSiteAssets(html: string, pageUrl: string): SiteAssets {
 
   icons.sort((a, b) => b.rank - a.rank);
   return { logo: icons[0]?.url ?? null, image, siteName };
+}
+
+const MAX_COLORS = 5;
+/** A colour is "grey" when its channels are within this distance of each other: theme greys are noise, not identity. */
+const GREY_TOLERANCE = 24;
+
+/**
+ * The colours the site actually uses: hex codes counted in its HTML and inline CSS (theme variables,
+ * inline styles), most frequent first, greys dropped, black and white kept only when nothing else
+ * remains. Facts for the analysis, which must not invent a palette from words.
+ */
+export function extractSiteColors(html: string): string[] {
+  const counts = new Map<string, number>();
+  for (const match of html.matchAll(/#([0-9a-f]{6})\b/gi)) {
+    const hex = `#${match[1].toUpperCase()}`;
+    counts.set(hex, (counts.get(hex) ?? 0) + 1);
+  }
+  const isGrey = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return Math.max(r, g, b) - Math.min(r, g, b) <= GREY_TOLERANCE;
+  };
+  const ranked = Array.from(counts).sort((a, b) => b[1] - a[1]).map(([hex]) => hex);
+  const colourful = ranked.filter((hex) => !isGrey(hex));
+  const extremes = ranked.filter((hex) => hex === "#000000" || hex === "#FFFFFF");
+  return [...colourful.slice(0, MAX_COLORS), ...extremes].slice(0, MAX_COLORS);
 }
