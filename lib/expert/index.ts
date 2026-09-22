@@ -252,9 +252,10 @@ export async function archiveConversation(brandId: string, conversationId: strin
 
 export async function setProposalState(brandId: string, messageId: string, state: ProposalState, versions?: { os: number | null; mega: number | null }) {
   const supabase = await createSupabaseServerClient();
-  const target = () => supabase.from("expert_messages").update;
-  let { error } = await target()({ proposal_state: state, ...(versions ? { applied_os_version: versions.os, applied_mega_version: versions.mega } : {}) }).eq("id", messageId).eq("brand_id", brandId);
-  if (isMissingColumn(error)) ({ error } = await target()({ proposal_state: state }).eq("id", messageId).eq("brand_id", brandId));
+  // Seen live: detaching `.update` from the query builder loses `this` and throws on the first call.
+  const update = (values: Record<string, unknown>) => supabase.from("expert_messages").update(values).eq("id", messageId).eq("brand_id", brandId);
+  let { error } = await update({ proposal_state: state, ...(versions ? { applied_os_version: versions.os, applied_mega_version: versions.mega } : {}) });
+  if (isMissingColumn(error)) ({ error } = await update({ proposal_state: state }));
   if (error && !isMissingTable(error)) throw error;
 }
 
