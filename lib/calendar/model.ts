@@ -186,7 +186,8 @@ export type PlanItem = {
   idea: string;
 };
 
-export const MAX_PLAN_ITEMS = 16;
+// A month at 5 publications a week is 22 slots: the planner must be able to fill it in one go.
+export const MAX_PLAN_ITEMS = 25;
 const MAX_ANGLE = 120;
 const MAX_IDEA = 400;
 

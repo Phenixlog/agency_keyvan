@@ -282,7 +282,7 @@ export async function proposeMonth(args: {
         }),
         schemaName: "month_plan",
         schema: PLAN_SCHEMA,
-        maxTokens: 2500,
+        maxTokens: 4000,
         temperature: 0.6,
         timeoutMs: 60_000,
       });
